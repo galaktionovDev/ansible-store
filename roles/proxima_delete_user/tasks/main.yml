@@ -1,0 +1,63 @@
+---
+
+- name: Reassign all owned objects to postgres
+  postgresql_query:
+    login_db: postgres
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "REASSIGN OWNED BY {{ username }} TO postgres;"
+  run_once: true
+
+- name: Drop all owned objects by user
+  postgresql_query:
+    login_db: postgres
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "DROP OWNED BY {{ username }} CASCADE;"
+  run_once: true
+
+- name: Finally remove PostgreSQL user
+  postgresql_user:
+    name: "{{ username }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    state: absent
+  run_once: true
+
+- name: Slurp the Odyssey configuration file
+  slurp:
+    src: "{{ odyssey_config_path }}"
+  register: odyssey_config
+
+#- name: Extract markers for blocks related to a specific database
+#  set_fact:
+#    markers_to_remove: "{{ odyssey_config.content | b64decode | regex_findall('(ANSIBLE MANAGED BLOCK for .*? in ' + databasename + ')') }}"
+
+- name: Extract markers for blocks related to a specific database
+  set_fact:
+    markers_to_remove: "{{ odyssey_config.content | b64decode | regex_findall('(ANSIBLE MANAGED BLOCK for ' + username + ' in .*)') }}"
+
+- name: Check regex matches
+  debug:
+    msg: "{{ markers_to_remove }}"
+
+- name: Remove all related blocks for a specific database
+  blockinfile:
+    path: "{{ odyssey_config_path }}"
+    marker: "# {mark} {{ item }}"
+    block: ''
+    state: 'absent'
+  loop: "{{ markers_to_remove }}"
+  notify: restart odyssey
+
+
+- set_stats:
+    data:
+      db_users:
+        username: "{{ username }}"

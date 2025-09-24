@@ -1,0 +1,26 @@
+---
+
+- name: Gather network facts only
+  ansible.builtin.setup:
+    gather_subset: network
+
+- name: Check if dcgm_exporter service is running
+  ansible.builtin.systemd:
+    name: dcgm_exporter
+    state: started
+  register: dcgm_exporter_status
+  ignore_errors: yes
+
+- name: Print dcgm_exporter_status
+  debug:
+    var: dcgm_exporter_status
+
+- block:
+    - include_tasks: configure-dcgm-exporter.yml
+  when: dcgm_exporter_status.changed or dcgm_exporter_status.failed
+
+- name: Set stats with updated node_exporter_target list
+  set_stats:
+    data:
+      node_exporter_target: "{{ (node_exporter_target | default([])) + [ansible_default_ipv4.address + ':9200'] | unique }}"
+

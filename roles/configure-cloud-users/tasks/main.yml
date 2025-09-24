@@ -1,0 +1,8 @@
+---
+
+- name: Настройка локальных пользователей и их SSH ключей
+  include_tasks: user_setup.yml
+  loop: "{{ os_local_users }}"
+  when: os_local_users is defined
+  loop_control:
+    loop_var: user_data

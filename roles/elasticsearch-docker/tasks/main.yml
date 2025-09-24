@@ -1,0 +1,15 @@
+---
+
+- name: Start a Elasticsearch container with 9200 port exposed
+  raw: >
+    docker run -d --restart=always --name cloudbox-elasticsearch \
+        -e ELASTIC_PASSWORD={{ elastic_password }} \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        -e "discovery.type=single-node" \
+        -e xpack.security.enabled=true \
+        {{ nexus_docker_url }}/elasticsearch:{{ elasticsearch_version }}
+
+- set_stats:
+    data:
+      connection_http_url: "{{ 'http://' + machine['default_v4_address'] + ':' + '9200' }}"

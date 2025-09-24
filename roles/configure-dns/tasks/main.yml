@@ -1,0 +1,16 @@
+---
+
+- name: Add DNS servers to /etc/resolv.conf
+  lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver {{ item }}"
+    state: present
+  with_items: "{{ dns_servers }}"
+
+
+
+
+
+
+
+

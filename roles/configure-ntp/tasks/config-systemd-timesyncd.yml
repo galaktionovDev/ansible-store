@@ -1,0 +1,108 @@
+---
+
+- name: Check if systemd-timesyncd is installed (DPKG)
+  command: dpkg -l systemd-timesyncd
+  register: systemd_timesyncd_dpkg_status
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Set fact for systemd-timesyncd installation (DPKG)
+  set_fact:
+    systemd_timesyncd_installed: "{{ systemd_timesyncd_dpkg_status.rc == 0 and systemd_timesyncd_dpkg_status.stdout_lines[-1] != 'un  systemd-timesyncd <none>       <none>       (no description available)' }}"
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+
+
+- name: Check if systemd-timesyncd service exists
+  command: systemctl status systemd-timesyncd
+  register: systemd_timesyncd_status
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+
+- name: Set fact for systemd-timesyncd service availability
+  set_fact:
+    systemd_timesyncd_service_available: "{{ systemd_timesyncd_status.rc == 0 or systemd_timesyncd_status.rc == 3 }}"
+
+- name: Debug systemd_timesyncd_installed
+  debug:
+    var: systemd_timesyncd_installed
+
+- name: Debug systemd_timesyncd_service_available
+  debug:
+    var: systemd_timesyncd_service_available
+
+- name: Configure repositories and install systemd-timesyncd if not present
+  block:
+      
+
+    - name: "Install systemd-timesyncd package"
+      apt:
+        name: systemd-timesyncd
+        state: present
+      when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'debian']
+      ignore_errors: true
+
+    - name: "Install systemd-timesyncd package for Astra"
+      block:
+        - name: "Install systemd-timesyncd using apt-get command for Astra"
+          command: apt-get install -y systemd-timesyncd
+      when: ansible_distribution.split(' ') | first | lower in ['astra']
+      ignore_errors: true
+
+  when: not systemd_timesyncd_installed and not systemd_timesyncd_service_available
+
+- name: Check if ntpd is active
+  command: systemctl is-active ntpd
+  register: ntp_status
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+
+- name: Check if chrony is active
+  command: systemctl is-active chronyd
+  register: chrony_status
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+
+- name: Stop and disable ntpd
+  systemd:
+    name: ntpd
+    state: stopped
+    enabled: no
+  when: ntp_status.rc == 0
+  
+
+- name: Stop and disable chrony
+  systemd:
+    name: chronyd
+    state: stopped
+    enabled: no
+  when: chrony_status.rc == 0
+  ignore_errors: yes
+
+- name: Uninstall ntp using command
+  ansible.builtin.command:
+    cmd: apt-get -y remove ntp
+  when: ansible_distribution.split(' ') | first | lower in ['astra']
+  ignore_errors: true
+
+- name: Update timesyncd.conf with custom NTP servers
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: '^NTP='
+    line: "NTP={{ ntp_servers | join(' ') }}"
+    create: yes
+
+- name: Enable and restart systemd-timesyncd
+  systemd:
+    name: systemd-timesyncd
+    state: restarted
+    enabled: yes
+  ignore_errors: yes
+
+- meta: flush_handlers
+

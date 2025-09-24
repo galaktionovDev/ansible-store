@@ -1,0 +1,25 @@
+---
+
+- name: Start a clickhouse container with {{ clickhouse_port }} port exposed
+  raw: >
+    docker run -d --restart=always --name {{ clickhouse_cloud_container_name }} \
+    -e CLICKHOUSE_USER={{ clickhouse_user }} \
+    -e CLICKHOUSE_PASSWORD={{ clickhouse_password }} \
+    -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+    --ulimit nofile=262144:262144 \
+    -p {{ clickhouse_http_port }}:{{ clickhouse_http_port }} \
+    -p {{ clickhouse_native_port }}:{{ clickhouse_native_port }} \
+    -v {{ app_data_volume_name }}:{{ container_data_path }} \
+    -v {{ app_logs_volume_name }}:{{ container_logs_path }} \
+    -v {{ app_config_volume_name }}:{{ container_config_path }} \
+    -v {{ app_users_volume_name }}:{{ container_users_path }} \
+    -v {{ app_initdb_volume_name }}:{{ container_initdb_path }} \
+    {{ nexus_docker_url }}/clickhouse/clickhouse-server:{{ clickhouse_version }}
+
+- set_stats:
+    data:
+      connection_http_url: "{{ 'http://' + machine['default_v4_address'] + ':' + clickhouse_http_port }}"
+      connection_native_url: "{{ 'clickhousedb://' + machine['default_v4_address'] + ':' + clickhouse_native_port + '/default' }}"
+
+
+

@@ -1,0 +1,19 @@
+---
+# tasks file for user_creation
+
+- name: Ensure user {{ root_user }} is present
+  ansible.builtin.user:
+    name: "{{ root_user }}"
+    password: "{{ root_password | password_hash('sha512') }}"
+    state: present
+    create_home: yes
+
+- name: Give the user sudo privileges
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: "^{{ root_user }} "
+    line: "{{ root_user }} ALL=(ALL) NOPASSWD: ALL"
+    validate: 'visudo -cf %s'
+
+

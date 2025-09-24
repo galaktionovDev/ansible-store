@@ -1,0 +1,8 @@
+---
+
+app_name: "elasticsearch"
+ansible_become: true
+distrib_version: "1.0"
+distrib_name: "elasticsearch-docker-image"
+archive_ext: "tar"
+docker_path: "/tmp/docker-images"

@@ -1,0 +1,30 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - import_role:
+        name: configure-load-vars
+    - include_role:
+        name: configure-first-logon  
+    - include_role:
+        name: configure-cloud-users
+    - include_role:
+        name: configure-dns
+    - include_role:
+       name: configure-repositories
+    - include_role:
+        name: configure-gpu
+      when: gpus is defined and gpus | length > 0
+    - include_role:
+        name: configure-ntp
+    - include_role:
+        name: linux_disk
+      vars:
+        interface: initialize
+    - include_role:
+        name: configure-node-exporter
+    - include_role:
+        name: configure-dcgm-exporter
+      when: gpus is defined and gpus | length > 0
+        

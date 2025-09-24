@@ -1,0 +1,8 @@
+---
+
+- name: Stop node_exporter service if running
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: stopped
+    enabled: false
+  ignore_errors: yes

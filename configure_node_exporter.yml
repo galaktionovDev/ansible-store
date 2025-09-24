@@ -1,0 +1,12 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: configure-node-exporter
+    - include_role:
+        name: configure-dcgm-exporter
+      when: gpus is defined and gpus | length > 0
+
+

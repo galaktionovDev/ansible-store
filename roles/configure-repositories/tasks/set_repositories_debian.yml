@@ -1,0 +1,62 @@
+---
+
+- name: "set_repositories | add trust to repos from set_repositories_required_repo variable"
+  apt_key:
+    url: "{{ item.key_url | default(omit) }}"
+    state: present
+    data: "{{ item.data | default(omit) }}"
+    validate_certs: false
+  when:
+    - item.name is defined
+    - item.key_url is defined or item.data is defined
+  loop: "{{ set_repositories_repo_keys.apt }}"
+  loop_control:
+    label: "{{ item.name }}"
+  ignore_errors: true  # Ignoring errors if there's no internet
+
+# - name: "set_repositories | add required repo from set_repositories_repo_keys using module"
+#   block:
+#     - name: "set_repositories | add required repo from set_repositories_repo_keys module"
+#       apt_repository:
+#         repo: "{{ item.repo_string }}"
+#         state: present
+#         filename: "{{ item.name }}"
+#         update_cache: true
+#       when:
+#         - item.name is defined
+#         - item.repo_string is defined
+#       loop: "{{ set_repositories_required_repo.apt }}"
+#       loop_control:
+#         label: "{{ item.name }}"
+#       # ignore_errors: true  # Ignoring errors if there's no internet
+#   # when: ansible_distribution.split(' ') | first | lower not in ['astra']
+
+- name: "set_repositories | add required repo from set_repositories_repo_keys using copy"
+  block:
+
+    - name: "Comment out all lines in sources.list"
+      replace:
+        path: "/etc/apt/sources.list"
+        regexp: '^(.*)$'
+        replace: '#\1'
+      ignore_errors: yes
+
+    - name: "Add repository to {{ item.name }} copy"
+      copy:
+        dest: "/etc/apt/sources.list.d/{{ item.name }}.list"
+        content: "{{ item.repo_string }}"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      when:
+        - item.name is defined
+        - item.repo_string is defined
+      loop: "{{ set_repositories_required_repo.apt }}"
+      loop_control:
+        label: "{{ item.name }}"
+    
+    - name: Update apt cache
+      command: apt-get update
+      ignore_errors: true  # Ignoring errors if there's no internet
+  # when: ansible_distribution.split(' ') | first | lower in ['astra']
+

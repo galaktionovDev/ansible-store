@@ -1,0 +1,31 @@
+---
+
+- block:
+  - name: Create app volume group
+    include_tasks: manage_vg.yml
+
+  - include_tasks: loops/lvm_lv.yml
+    with_items: "{{ app_lvs }}"
+    loop_control:
+      loop_var: lv
+      extended: true
+
+  - name: update_facts
+    setup:
+      gather_subset: hardware
+
+  when: extra_mounts | length > 0
+
+- name: Подготовка данных для boot_disk с добавлением префикса /dev/
+  set_fact:
+    boot_disk_modified: "{{ boot_disk | combine({'path': '/dev/' + boot_disk_name}) }}"
+
+- name: Set stats
+  set_stats:
+    data:
+      disk_devices_data:
+        extra_disks: "{{ generated_extra_disks }}"
+        extra_mounts: "{{ generated_extra_mounts }}"
+        boot_disk: "{{ boot_disk_modified }}"
+
+

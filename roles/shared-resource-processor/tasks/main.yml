@@ -1,0 +1,30 @@
+---
+
+- name: Debug input variable
+  debug:
+    msg: "Processing is_shared_resource: {{ is_shared_resource }}"
+
+- name: Set empty shared_resource_pool when is_shared_resource is false
+  set_fact:
+    shared_resource_pool: {}
+  when: not is_shared_resource | bool
+
+- name: Set fixed shared_resource_pool when is_shared_resource is true
+  set_fact:
+    shared_resource_pool:
+      endpoint: "{{ fixed_endpoint }}"
+      platform: "{{ fixed_platform }}"
+      verify_ssl: "{{ fixed_verify_ssl }}"
+      nova_harbor: "{{ fixed_nova_harbor }}"
+      application_domain: "{{ fixed_application_domain }}"
+      persistent_storage_size: "{{ fixed_persistent_storage_size }}"
+  when: is_shared_resource | bool
+
+- name: Display final shared_resource_pool
+  debug:
+    var: shared_resource_pool
+
+- name: Set stats with shared_resource_pool
+  set_stats:
+    data:
+      shared_resource_pool: "{{ shared_resource_pool }}" 

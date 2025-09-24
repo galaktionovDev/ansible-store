@@ -1,0 +1,15 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - import_role:
+        name: configure-load-vars
+    - include_role:
+        name: make-managed
+    - include_role:
+        name: configure-dns
+    - include_role:
+        name: configure-repositories
+      vars:
+        interface: get_manage_info      

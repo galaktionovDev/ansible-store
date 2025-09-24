@@ -1,0 +1,9 @@
+---
+
+#psql -h 10.15.20.133 -p 7432 -U postgres -d postgres
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: proxima_delete_db

@@ -1,0 +1,8 @@
+---
+- name: Check server availability
+  wait_for_connection:
+    connect_timeout: 5
+    delay: 0
+    sleep: 5
+    timeout: 600
+...

@@ -1,0 +1,10 @@
+---
+
+# - name: Delete content from apt
+#   ansible.builtin.file:
+#     state: absent
+#     path: /etc/apt/sources.list
+
+- name: "set_repositories"
+  import_tasks: set_repositories_debian.yml
+  when: set_repositories_required_repo | length > 0

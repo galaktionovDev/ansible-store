@@ -1,0 +1,5 @@
+---
+ansible_become: true
+shutdown_delay: 1
+message: "Triggered OS shutdown from Cloud after {{ shutdown_delay }} minute"
+...

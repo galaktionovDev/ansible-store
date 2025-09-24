@@ -1,0 +1,13 @@
+---
+
+ansible_become: true
+
+# postgres_role/defaults/main.yml
+postgres_host: 10.15.24.114
+postgres_port: 7432
+postgres_user: "postgres"
+postgres_password: "dRWN6odS7P0Gs00I7V"
+databasename: "new_db_2"
+
+odyssey_config_path: "/etc/odyssey/odyssey.conf"
+keepalived_address: "10.15.24.114"

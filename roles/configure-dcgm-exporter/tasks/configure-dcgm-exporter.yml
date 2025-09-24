@@ -1,0 +1,57 @@
+---
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- name: Ensure dcgm_exporter directory exists
+  ansible.builtin.file:
+    path: "{{ dcgm_exporter_path }}"
+    state: directory
+    mode: '0755'
+  ignore_errors: yes
+
+- name: Install dcgm exporter
+  ansible.builtin.get_url:
+    url: "{{ dcgm_exporter_url }}.tar.gz"
+    dest: "{{ dcgm_exporter_path }}/{{ dcgm_exporter_name }}.tar.gz"
+    mode: "0644"
+    headers: "{}"
+    validate_certs: true
+  ignore_errors: yes
+
+- name: Unpack dcgm_exporter tarball
+  ansible.builtin.unarchive:
+    src: "{{ dcgm_exporter_path }}/{{ dcgm_exporter_name }}.tar.gz"
+    dest: "{{ dcgm_exporter_path }}"
+    mode: "0755"
+    remote_src: true
+  ignore_errors: yes
+
+- name: Set SELinux context for dcgm_exporter executable
+  ansible.builtin.command:
+    cmd: chcon -t bin_t {{ dcgm_exporter_path }}/nvidia_gpu_exporter
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+  ignore_errors: yes
+
+- block:
+    - include_tasks: configure-firewalld.yml
+  when: ansible_distribution.split(' ') | first | lower in ['almalinux', 'centos']
+
+- name: Configure dcgm_exporter systemd service
+  ansible.builtin.template:
+    src: dcgm_exporter.service.j2
+    dest: /etc/systemd/system/dcgm_exporter.service
+    mode: '0644'
+  notify:
+    - reload systemd
+    - start dcgm_exporter
+  ignore_errors: yes
+
+- name: Enable dcgm_exporter service
+  ansible.builtin.systemd:
+    name: dcgm_exporter
+    enabled: yes
+    state: started
+  ignore_errors: yes
+

@@ -1,0 +1,9 @@
+[Unit]
+Description=DCGM Exporter
+
+[Service]
+Type=simple
+ExecStart={{ dcgm_exporter_path }}/nvidia_gpu_exporter --web.listen-address=":9200"
+
+[Install]
+WantedBy=multi-user.target

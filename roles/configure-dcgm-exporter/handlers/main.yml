@@ -1,0 +1,10 @@
+---
+
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: start dcgm_exporter
+  ansible.builtin.systemd:
+    name: dcgm_exporter
+    state: started

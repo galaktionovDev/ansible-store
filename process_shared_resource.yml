@@ -1,0 +1,11 @@
+---
+
+- name: Process shared resource configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - name: Process shared resource pool
+      include_role:
+        name: shared-resource-processor 

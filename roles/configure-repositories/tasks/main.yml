@@ -1,0 +1,25 @@
+---
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- name: Print OS family
+  debug:
+    msg: "Distribution is {{ ansible_distribution }}"
+
+- name: Set CA Cert for Debian/Ubuntu
+  include_tasks: set_ca_cert_debian.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Set CA Cert for RedOS/CentOS/AlmaLinux
+  include_tasks: set_ca_cert_rhel.yml
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+
+- name: Configure Repositories for Debian/Ubuntu
+  include_tasks: configure_repositories_debian.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Configure Repositories for RedOS/CentOS/AlmaLinux
+  include_tasks: configure_repositories_rhel.yml
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']

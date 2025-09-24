@@ -1,0 +1,19 @@
+---
+
+- name: Ensure PostgreSQL user is present
+  postgresql_user:
+    name: "{{ username }}"
+    password: "{{ user_password }}"
+    role_attr_flags: CREATEDB,LOGIN
+    state: present
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+  run_once: true
+
+
+- set_stats:
+    data:
+      db_users:
+        username: "{{ username }}"

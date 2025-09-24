@@ -1,0 +1,9 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: linux_disk
+      vars:
+        interface: add_mount_point

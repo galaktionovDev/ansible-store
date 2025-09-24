@@ -1,0 +1,111 @@
+---
+
+- name: Gather system facts
+  setup:
+
+#- name: Define flavor name based on CPU and Memory
+#  set_fact:
+#    flavor_name: "c{{ ansible_processor_vcpus }}m{{ (ansible_memtotal_mb // 1024) }}"
+
+- name: Define flavor name based on CPU and Memory
+  set_fact:
+    flavor_name: "c{{ ansible_processor_vcpus }}m{{ ((ansible_memtotal_mb / 1024) | round(0, 'ceil')) }}"
+    memory_gb: "{{ ((ansible_memtotal_mb / 1024) | round(0, 'ceil')) }}"
+
+
+- set_stats:
+    data:
+      server_info: {
+        cpu: "{{ ansible_processor_vcpus }}",
+        ram: "{{ memory_gb | int }}",
+        boot_disk: { },
+        extra_disks: { },
+        extra_mounts: { },
+        "ansible_default_ipv4": "{{ ansible_default_ipv4.address }}",
+        "os": {
+          "type": "linux",
+          "version": "{{ ansible_distribution_version }}",
+          "architecture": "{{ ansible_architecture }}",
+          "distribution": "{{ ansible_distribution }}"
+        },
+        "hostname": "{{ ansible_hostname }}",
+        "mac_address": "{{ ansible_default_ipv4.macaddress }}"
+      }
+#
+#      vm_info: {
+#        "data": {
+#          "state": "on",
+#          "config": {
+#            "image": {
+#              "os": {
+#                "type": "linux",
+#                "version": "{{ ansible_distribution_version }}",
+#                "architecture": "{{ ansible_architecture }}",
+#                "distribution": "{{ ansible_distribution }}",
+#                "localization": "en"
+#              },
+#              "name": "ubuntu-template",
+#              "size": "",  # Size will be filled in when accurate method is determined
+#              "uuid": "",
+#              "imageid": ""
+#            },
+#            "flavor": {
+#              "cpus": "{{ ansible_processor_vcpus }}",
+#              "name": "{{ flavor_name }}",
+#              "uuid": "",
+#              "memory": "{{ memory_gb | int }}" # in GB
+#            },
+#            "hostname": "{{ ansible_hostname }}",
+#            "boot_disk": {
+#              "path": "",  # Path will be filled in when accurate method is determined
+#              "size": "",  # Size will be filled in when accurate method is determined
+#              "uuid": ""
+#            },
+#            "extra_disks": [ ],  # Extra disks information will be added later
+#            "extra_nics": [ ],
+#            "os_version": "{{ ansible_distribution_version }}",
+#            "data_center": {
+#              "code": "",
+#              "name": "",
+#              "site": null
+#            },
+#            "default_nic": {
+#              "mtu": "0",
+#              "uuid": "",
+#              "subnet": {
+#                "name": "",
+#                "uuid": ""
+#              },
+#              "addresses": [
+#                {
+#                  "type": "ipv4",
+#                  "address": "{{ ansible_default_ipv4.address }}"
+#                }
+#              ],
+#              "mac_address": "{{ ansible_default_ipv4.macaddress }}",
+#              "net_segment": "DEV_DEV",
+#              "address_assignment": "STATIC"
+#            },
+#            "environment": "DEV",
+#            "extra_mounts": [ ],
+#            "is_monitored": true,
+#            "resource_pool": {
+#              "name": "",
+#              "uuid": "",
+#              "domain": "",
+#              "endpoint": "",
+#              "platform": ""
+#            },
+#            "environment_type": "DEV",
+#            "default_v4_address": "{{ ansible_default_ipv4.address }}",
+#            "default_v6_address": null
+#          },
+#          "provider": "{{ provider }}",
+#          "inventory_status": "native"
+#        },
+#        "external_provider_id": ""
+#      }
+
+#- name: Output VM information
+#  debug:
+#    var: vm_info

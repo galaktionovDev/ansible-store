@@ -1,0 +1,16 @@
+---
+
+- name: Wait for the specified timeout and complete
+  hosts: all
+  gather_facts: no
+
+  tasks:
+    - name: Waiting for the specified amount of time
+      pause:
+        seconds: "{{ ansible_timeout | int }}"
+      register: result
+
+    - name: Output wait time
+      debug:
+        msg: "Waited for {{ result.user_input | default(ansible_timeout) }} seconds"
+

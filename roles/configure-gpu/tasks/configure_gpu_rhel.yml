@@ -1,0 +1,101 @@
+---
+
+- name: Check if the nouveau module is loaded
+  shell: lsmod | grep -wq nouveau
+  register: nouveau_loaded
+  ignore_errors: yes
+
+- name: Debug output of the nouveau_loaded variable
+  debug:
+    var: nouveau_loaded
+
+- name: Unload the nouveau module if it is loaded
+  command: modprobe -r nouveau
+  when: nouveau_loaded.rc == 0
+
+- name: Add nouveau to the blacklist
+  copy:
+    dest: /etc/modprobe.d/blacklist-nouveau.conf
+    content: |
+      blacklist nouveau
+      options nouveau modeset=0
+  when: nouveau_loaded.rc == 0
+
+- name: Ensure required libraries directory exists
+  ansible.builtin.file:
+    path: "{{ driver_packages_path }}"
+    state: directory
+    mode: '0755'
+  ignore_errors: yes
+
+- name: "Fetch required libraries"
+  ansible.builtin.get_url:
+    url: "{{ driver_packages_url }}{{  ansible_distribution.split(' ') | first | lower }}_{{ ansible_distribution_version | replace('.', '_') }}_requirements.tar"
+    dest: "{{ driver_packages_path }}/{{  ansible_distribution.split(' ') | first | lower }}_{{ ansible_distribution_version | replace('.', '_') }}_requirements.tar"
+    mode: "0644"
+    headers: "{}"
+    validate_certs: true
+  ignore_errors: yes
+
+- name: "Unpack required libraries"
+  ansible.builtin.unarchive:
+    src: "{{ driver_packages_path }}/{{  ansible_distribution.split(' ') | first | lower }}_{{ ansible_distribution_version | replace('.', '_') }}_requirements.tar"
+    dest: "{{ driver_packages_path }}"
+    mode: "0755"
+    remote_src: true
+  ignore_errors: yes
+
+- name: "Install all .rpm required packages from the unpacked directory"
+  ansible.builtin.shell: |
+    dnf install {{ driver_packages_path }}/*.rpm -y
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+
+- name: "Fetch NVIDIA Driver"
+  ansible.builtin.get_url:
+    url: "{{ driver_packages_url }}NVIDIA-Linux-x86_64-535.230.02.run"
+    dest: "{{ driver_packages_path }}/NVIDIA-Linux-x86_64-535.230.02.run"
+    mode: "0644"
+    headers: "{}"
+    validate_certs: true
+  ignore_errors: yes
+  when: gpus[0].is_vgpu is undefined or gpus[0].is_vgpu == false
+
+- name: "Ensure NVIDIA .run script is executable"
+  ansible.builtin.file:
+    path: "{{ driver_packages_path }}/NVIDIA-Linux-x86_64-535.230.02.run"
+    mode: "0755"
+  when: gpus[0].is_vgpu is undefined or gpus[0].is_vgpu == false
+
+- name: "Install NVIDIA GPU drivers using .run script"
+  ansible.builtin.shell: |
+    {{ driver_packages_path }}/NVIDIA-Linux-x86_64-535.230.02.run --silent --no-questions --no-x-check
+  args:
+    executable: /bin/bash
+  when: gpus[0].is_vgpu is undefined or gpus[0].is_vgpu == false
+  ignore_errors: true
+
+- name: "Fetch NVIDIA vGPU Driver"
+  ansible.builtin.get_url:
+    url: "{{ driver_packages_url }}NVIDIA-Linux-x86_64-570.133.20-grid.run"
+    dest: "{{ driver_packages_path }}/NVIDIA-Linux-x86_64-570.133.20-grid.run"
+    mode: "0644"
+    headers: "{}"
+    validate_certs: true
+  ignore_errors: yes
+  when: gpus[0].is_vgpu is defined and gpus[0].is_vgpu == true
+
+- name: "Ensure NVIDIA .run script is executable"
+  ansible.builtin.file:
+    path: "{{ driver_packages_path }}/NVIDIA-Linux-x86_64-570.133.20-grid.run"
+    mode: "0755"
+  when: gpus[0].is_vgpu is defined and gpus[0].is_vgpu == true
+
+- name: "Install NVIDIA vGPU drivers using .run script"
+  ansible.builtin.shell: |
+    {{ driver_packages_path }}/NVIDIA-Linux-x86_64-570.133.20-grid.run --silent --no-questions --no-x-check
+  args:
+    executable: /bin/bash
+  when: gpus[0].is_vgpu is defined and gpus[0].is_vgpu == true
+

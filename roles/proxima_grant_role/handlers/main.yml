@@ -1,0 +1,8 @@
+---
+
+# handlers/main.yml
+- name: restart odyssey
+  systemd:
+    name: odyssey
+    state: restarted
+    enabled: yes

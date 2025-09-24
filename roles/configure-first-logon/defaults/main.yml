@@ -1,0 +1,5 @@
+---
+
+public_key: "{{ _ENVS[environment_type]['linux'].public_key }}"
+blank_password: '!'
+ansible_become: true

@@ -1,0 +1,29 @@
+---
+
+# - name: Execute user provided code from the variable
+#   command: "{{ user_execution_code | quote }}"
+#   register: script_output
+
+# - name: Print the output of the user code
+#   debug:
+#     msg: "{{ script_output.stdout }}"
+
+- name: Save user script to a temporary file
+  copy:
+    content: "#!/bin/bash\n{{ user_execution_code | string }}"
+    dest: "/tmp/user_script.sh"
+    mode: '0700'
+
+
+- name: Execute user script
+  command: /tmp/user_script.sh
+  register: script_output
+
+- name: Remove temporary script
+  file:
+    path: /tmp/user_script.sh
+    state: absent
+
+- name: Print the output of the user code
+  debug:
+    msg: "{{ script_output.stdout }}"

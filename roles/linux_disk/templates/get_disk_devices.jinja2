@@ -1,0 +1,5 @@
+{%- set devices = namespace(value={}) -%}
+{%- for device_name, device_params in ansible_devices.items() if device_name.startswith(('hd', 'sd', 'vd')) -%}
+    {%- set _ = devices.value.update({device_name: device_params}) -%}
+{%- endfor -%}
+{{ devices.value | tojson }}

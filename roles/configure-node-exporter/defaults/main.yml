@@ -1,0 +1,7 @@
+---
+
+ansible_become: true
+node_exporter_path: "/app/node_exporter"
+node_exporter_version: "1.7.0"
+node_exporter_name: "node_exporter-{{ node_exporter_version }}.linux-amd64"
+node_exporter_url: "{{ nexus_url }}/repository/products-raw/victoriametrics/{{ node_exporter_name }}"

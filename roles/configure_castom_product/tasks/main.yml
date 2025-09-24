@@ -1,0 +1,6 @@
+---
+
+- name: Include execute_user_code.yml if user_execution_code is defined
+  include_tasks: execute_user_code.yml
+  when: user_execution_code | default('') | length > 0
+

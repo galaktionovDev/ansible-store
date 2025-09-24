@@ -1,0 +1,53 @@
+---
+
+- name: Terminate all connections to the PostgreSQL database
+  postgresql_query:
+    login_db: postgres
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: |
+      SELECT pg_terminate_backend(pid)
+      FROM pg_stat_activity
+      WHERE datname = '{{ databasename }}' AND pid <> pg_backend_pid();
+  run_once: true
+
+- name: Remove PostgreSQL database
+  postgresql_db:
+    name: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    state: absent
+  run_once: true
+
+- name: Slurp the Odyssey configuration file
+  slurp:
+    src: "{{ odyssey_config_path }}"
+  register: odyssey_config
+
+- name: Extract markers for blocks related to a specific database
+  set_fact:
+    markers_to_remove: "{{ odyssey_config.content | b64decode | regex_findall('(ANSIBLE MANAGED BLOCK for .*? in ' + databasename + ')') }}"
+
+- name: Check regex matches
+  debug:
+    msg: "{{ markers_to_remove }}"
+
+- name: Remove all related blocks for a specific database
+  blockinfile:
+    path: "{{ odyssey_config_path }}"
+    marker: "# {mark} {{ item }}"
+    block: ''
+    state: 'absent'
+  loop: "{{ markers_to_remove }}"
+  notify: restart odyssey
+
+
+- set_stats:
+    data:
+      db_info:
+        databasename: "{{ databasename }}"
+        postgres_user: "{{ postgres_user }}"

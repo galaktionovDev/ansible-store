@@ -1,0 +1,7 @@
+---
+
+ansible_become: true
+dcgm_exporter_path: "/app/dcgm_exporter"
+dcgm_exporter_version: "1.3.0"
+dcgm_exporter_name: "nvidia_gpu_exporter_{{ dcgm_exporter_version }}_linux_x86_64"
+dcgm_exporter_url: "{{ nexus_url }}/repository/products-raw/victoriametrics/{{ dcgm_exporter_name }}"

@@ -1,0 +1,10 @@
+---
+
+- name: Start a redis container with {{ redis_port }} port exposed
+  raw: "docker run -d --restart=always --name {{ redis_cloud_container_name }} -p {{ redis_port }}:{{ redis_port }} -e REDIS_PASSWORD={{ redis_password }} -v {{ app_data_volume_name }}:{{ container_data_path }} -v {{ app_config_volume_name }}:{{ container_config_path }} {{ nexus_docker_url }}/bitnami/redis:{{ redis_version }}"
+
+
+- set_stats:
+    data:
+      connection_url: "{{ 'redis://' + machine['default_v4_address'] + ':' + redis_port }}"
+      redis_version: "{{ redis_version }}"

@@ -1,0 +1,22 @@
+---
+
+app_name: "clickhouse"
+ansible_become: true
+clickhouse_version: 23.5.3.24
+docker_file_path: "/tmp/docker-dockerfile-path"
+clickhouse_http_port: "8123"
+clickhouse_native_port: "9000"
+clickhouse_cloud_container_name: "cloudbox-{{ app_name }}"
+app_volume_prefix: "cloud"
+
+app_data_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-data"
+app_logs_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-logs"
+app_config_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-config"
+app_users_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-users"
+app_initdb_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-initdb"
+
+container_data_path: "/var/lib/clickhouse/"
+container_logs_path: "/var/log/clickhouse-server/"
+container_config_path: "/etc/clickhouse-server/config.d/"
+container_users_path: "/etc/clickhouse-server/users.d/"
+container_initdb_path: "/docker-entrypoint-initdb.d/"

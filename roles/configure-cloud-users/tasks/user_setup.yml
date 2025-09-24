@@ -1,0 +1,22 @@
+---
+
+- name: Создание локального пользователя
+  ansible.builtin.user:
+    name: "{{ user_data.name }}"
+    shell: /bin/bash
+    createhome: yes
+
+- name: Настройка sudoers без пароля для пользователя
+  ansible.builtin.lineinfile:
+    path: "/etc/sudoers.d/{{ user_data.name }}"
+    line: "{{ user_data.name }} ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    validate: 'visudo -cf %s'
+
+- name: Добавление авторизованных SSH ключей для пользователя
+  ansible.builtin.authorized_key:
+    user: "{{ user_data.name }}"
+    key: "{{ item }}"
+  loop: "{{ user_data.pub_keys }}"
+  when: "user_data.pub_keys is defined"
+

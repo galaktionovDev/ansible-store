@@ -1,0 +1,92 @@
+---
+
+- name: Ensure PostgreSQL database is present
+  postgresql_db:
+    name: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    state: present
+  run_once: true
+
+- name: Slurp the Odyssey configuration file
+  slurp:
+    src: "{{ odyssey_config_path }}"
+  register: odyssey_config
+
+- name: Check if the database block exists
+  set_fact:
+    block_exists: "{{ 'database \"{{ databasename }}\" {' in (odyssey_config.content | b64decode) }}"
+
+- name: Insert database configuration block if it does not exist
+  blockinfile:
+    path: "{{ odyssey_config_path }}"
+    block: |
+      database "{{ databasename }}" {
+        user "{{ postgres_user }}" {
+          authentication "md5"
+          password "{{ postgres_password }}"
+          storage "postgres_server"
+          pool "session"
+          log_debug yes
+          log_query yes
+        }
+      }
+    marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ postgres_user }} in {{ databasename }}"
+    insertafter: EOF
+    backup: yes
+  when: not block_exists
+  notify: restart odyssey
+
+
+
+#- name: Check if the database block is already in the Odyssey config
+#  lineinfile:
+#    path: "{{ odyssey_config_path }}"
+#    state: present
+#    regexp: '^database "{{ databasename }}" \{$'
+#    line: |
+#      database "{{ databasename }}" {
+#        user "{{ postgres_user }}" {
+#          authentication "md5"
+#          password "{{ postgres_password }}"
+#          storage "postgres_server"
+#          pool "session"
+#          log_debug yes
+#          log_query yes
+#        }
+#      }
+#    insertafter: EOF
+#    backrefs: yes
+#    backup: yes
+#  notify: restart odyssey
+
+
+#- name: Ensure database configuration exists in Odyssey config
+#  lineinfile:
+#    path: "{{ odyssey_config_path }}"
+#    create: no
+#    insertafter: EOF
+#    line: |
+#      database "{{ databasename }}" {
+#        user "{{ postgres_user }}" {
+#          authentication "md5"
+#          password "{{ postgres_password }}"
+#          storage "postgres_server"
+#          pool "session"
+#          log_debug yes
+#          log_query yes
+#        }
+#      }
+#    backup: yes
+#    state: present
+#    regexp: '^database "{{ databasename }}"\s*\{'
+#  notify: restart odyssey
+
+
+- set_stats:
+    data:
+      db_info:
+        databasename: "{{ databasename }}"
+        postgres_user: "{{ postgres_user }}"

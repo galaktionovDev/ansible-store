@@ -1,0 +1,15 @@
+---
+
+- name: Start a mysql container with {{ mysql_port }} port exposed
+  raw: >
+    docker run -d --restart=always --name {{ mysql_cloud_container_name }} \
+    -e MYSQL_ROOT_PASSWORD={{ mysql_root_password }} \
+    -p {{ mysql_port }}:{{ mysql_port }} \
+    -v {{ app_data_volume_name }}:{{ container_data_path }} \
+    -v {{ app_config_volume_name }}:{{ container_config_path }} \
+    -v {{ app_initdb_volume_name }}:{{ container_initdb_path }} \
+    {{ nexus_docker_url }}/mysql:{{ mysql_version }}
+
+- set_stats:
+    data:
+      connection_url: "{{ machine['default_v4_address'] + ':' + mysql_port }}"

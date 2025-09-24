@@ -1,0 +1,73 @@
+---
+
+- block:
+
+  - block:  # Основной блок для первой задачи
+    - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+      ansible.builtin.command:
+        cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+    rescue:  # Блок, который выполнится, если в основном блоке произошла ошибка
+    - block:  # Вторая задача, если первая не удалась
+      - name: Resize partition
+        community.general.parted:
+          device: "/dev/{{ boot_disk_name }}"
+          number: "{{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }}"
+          state: present
+          part_end: 100%
+          resize: true
+      rescue:  # Если вторая задача тоже завершилась с ошибкой
+      - name: Изменить размер раздела на boot до 100% доступного пространства для Yandex Cloud
+        ansible.builtin.command:
+          cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }}"
+
+
+  # - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+  #   ansible.builtin.command:
+  #     cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+  #   when: platform | lower == 'hyper_v'
+#    ignore_errors: yes
+
+  # - name: Resize partition
+  #   community.general.parted:
+  #     device: "/dev/{{ boot_disk_name }}"
+  #     number: "{{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }}"
+  #     state: present
+  #     part_end: 100%
+  #     resize: true
+  #   when: (platform | lower != 'hyper_v' and  platform | lower != 'yandex_cloud')
+  
+  
+  # - name: Resize partition
+  #   community.general.parted:
+  #     device: "/dev/{{ boot_disk_name }}"
+  #     number: "{{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }}"
+  #     state: present
+  #     part_end: 100%
+  #     resize: true
+#    when: (platform | lower != 'hyper_v' and  platform | lower != 'yandex_cloud')
+
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+#    ansible.builtin.command:
+#      cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+#    ignore_errors: yes
+#    when: platform | lower == 'hyper_v'
+
+#  - name: Изменить размер раздела на boot до 100% доступного пространства
+#    ansible.builtin.command:
+#      cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#    ignore_errors: yes
+#    when: platform | lower == 'yandex_cloud'
+
+  - name: Force reread disks
+    command: "pvresize -v /dev/{{ root_partition_name }}"
+#    when: platform | lower != 'yandex_cloud'
+
+  - name: Resize the logical volume
+    lvol:
+      vg: "{{ root_vg_name }}"
+      lv: "{{ root_lv_name }}"
+      size: "+100%FREE"
+      resizefs: true
+#    when: platform | lower != 'yandex_cloud'
+
+...

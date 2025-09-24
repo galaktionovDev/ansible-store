@@ -1,0 +1,18 @@
+---
+
+app_name: "wildfly"
+ansible_become: true
+wildfly_cloud_container_name: "cloudbox-wildfly"
+wildfly_port: "8080"
+wildfly_management_port: "9990"
+wildfly_version: "27.0.0"
+wildfly_openjdk_version: "17.0.7"
+management_listen_address: "0.0.0.0"
+management_console_remote_access: false
+app_volume_prefix: "cloud"
+app_data_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-data"
+app_config_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-config"
+app_log_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-user-config"
+container_deployments_path: "/opt/bitnami/wildfly/standalone/deployments"
+container_config_path: "/opt/bitnami/wildfly/standalone/configuration"
+container_log_path: "/opt/bitnami/wildfly/standalone/log"

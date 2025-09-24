@@ -1,0 +1,13 @@
+---
+
+# - import_playbook: first-logon.yml
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: configure_custom_product
+  vars:
+    distrib_store: "{{ _REPOS.distrib_store }}"
+    docker_registry: "{{ _REPOS.docker_registry }}"
+    docker_image_path: "{{ _REPOS.docker_image_path }}"

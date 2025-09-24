@@ -1,0 +1,73 @@
+---
+
+- name: Check if ntpd is active
+  systemd:
+    name: ntpd
+    state: stopped
+    enabled: no
+  register: ntpd_status
+  ignore_errors: true
+
+- name: Check if systemd-timesyncd is active
+  systemd:
+    name: systemd-timesyncd
+    state: stopped
+    enabled: no
+  register: timesyncd_status
+  ignore_errors: true
+
+- name: Gather package facts
+  package_facts:
+    manager: auto
+
+- name: Debug - check if chrony is in the package facts
+  debug:
+    var: ansible_facts.packages.chrony
+  ignore_errors: true
+
+- name: Install chrony
+  yum:
+    name: chrony
+    state: present 
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: 
+    - "'chrony' not in ansible_facts.packages"
+    - "ansible_distribution.split(' ') | first | lower in ['centos']"
+
+- name: Install chrony
+  dnf:
+    name: chrony
+    state: present 
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: 
+    - "'chrony' not in ansible_facts.packages"
+    - "ansible_distribution.split(' ') | first | lower not in ['centos']"
+
+- name: Remove old server lines from chrony.conf
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^server '
+    state: absent
+
+- name: Add new NTP servers to chrony.conf
+  ansible.builtin.blockinfile:
+    path: /etc/chrony.conf
+    block: |
+      {% for server in ntp_servers %}
+      server {{ server }} iburst
+      {% endfor %}
+    marker: "# {mark} ANSIBLE MANAGED NTP SERVERS"
+    create: yes
+
+
+- name: Enable and restart chronyd
+  systemd:
+    name: chronyd
+    state: restarted
+    enabled: yes
+
+
+- meta: flush_handlers
+

@@ -1,0 +1,5 @@
+---
+- name: Shutdown VM from OS level
+  shell:
+    _raw_params: "/sbin/shutdown -h +{{ shutdown_delay }} '{{ message }}'"
+...

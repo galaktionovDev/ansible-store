@@ -1,0 +1,20 @@
+---
+- name: Wait server availability
+  wait_for_connection:
+    connect_timeout: 5
+    delay: 0
+    sleep: 5
+    timeout: 600
+
+- setup:
+
+- name: Put cloud public key file
+  authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ public_key }}"
+    exclusive: true
+
+- name: Disable password authentication
+  user:
+    name: "{{ ansible_user }}"
+    password: "{{ blank_password }}"

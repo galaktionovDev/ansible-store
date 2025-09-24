@@ -1,0 +1,20 @@
+---
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- name: Configure GPU driver for Debian like 
+  include_tasks: configure_gpu_debian.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'debian', 'astra']
+
+- name: Configure GPU driver for RHEL
+  include_tasks: configure_gpu_rhel.yml
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+
+
+
+
+
+
+

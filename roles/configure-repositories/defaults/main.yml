@@ -1,0 +1,37 @@
+---
+
+nexus_hostname: "{{ nexus_url | urlsplit('hostname') }}"
+ansible_become: true
+ca_url: "{{ nexus_url }}/repository/products-raw/CA.crt"
+
+
+set_repositories_repo_keys:
+  apt:
+    - name: cld-repository
+      key_url: "{{ nexus_url }}/repository/products-raw/products-apt.public.gpg.key"
+  yum:
+    - name:  cld-repository
+      key_url: "{{ nexus_url }}/repository/products-raw/products-apt.public.gpg.key"
+
+
+set_repositories_required_repo:
+  apt:
+    - name:  cld-repository
+      repo_string: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+  yum:
+    el7:
+      - name:  cld-repository-el7
+        repo_string: "{{ nexus_url }}/repository/products-yum/el7/"
+        description: "cld repository el7"
+    el8:
+      - name:  cld-repository-el8
+        repo_string: "{{ nexus_url }}/repository/products-yum/el8/"
+        description: "cld repository el8"
+
+
+
+set_ca_trust_restart_services: []
+set_repositories_apt_proxy: []
+
+...
+

@@ -1,0 +1,31 @@
+---
+
+- name: Start wildfly container with 8080, 9990 ports exposed without remote management console access
+  raw: >
+    docker run  --name {{ wildfly_cloud_container_name }} -d --restart=always -p 8080:8080 -p 9990:9990 
+    -e WILDFLY_USERNAME={{ wildfly_username }} 
+    -e WILDFLY_PASSWORD={{ wildfly_password }}
+    -v {{ app_data_volume_name }}:{{ container_deployments_path }} 
+    -v {{ app_config_volume_name }}:{{ container_config_path }}
+    {{ nexus_docker_url }}/bitnami/wildfly:{{ wildfly_version }}
+  when: not management_console_remote_access
+
+- name: Start wildfly container with 8080, 9990 ports exposed with remote management console access
+  raw: >
+    docker run --name {{ wildfly_cloud_container_name }} -d --restart=always -p 8080:8080 -p 9990:9990 
+    -e WILDFLY_USERNAME={{ wildfly_username }} 
+    -e WILDFLY_PASSWORD={{ wildfly_password }} 
+    -e WILDFLY_MANAGEMENT_LISTEN_ADDRESS={{ management_listen_address }}
+    -v {{ app_data_volume_name }}:{{ container_deployments_path }} 
+    -v {{ app_config_volume_name }}:{{ container_config_path }}
+    {{ nexus_docker_url }}/bitnami/wildfly:{{ wildfly_version }}
+  when: management_console_remote_access
+
+- set_stats:
+    data:
+      connection_url: "{{ 'http://' + machine['default_v4_address'] + ':' + wildfly_port }}"
+      management_console_url: "{{ 'http://' + machine['default_v4_address'] + ':' + wildfly_management_port }}"
+      wildfly_version: "{{ wildfly_version }}"
+      wildfly_openjdk_version: "{{ wildfly_openjdk_version }}"
+
+

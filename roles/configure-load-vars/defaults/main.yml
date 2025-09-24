@@ -1,0 +1,19 @@
+---
+_ENVS:
+  DEV:
+    linux:
+      public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJImmhphZDDIDzExRtr8IeqIyFwpheX48W+tF4frKXV4 cloud-dev
+      prime_user: cloud-config-mgmt
+  TEST:
+    linux:
+      public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJB2kWrFf32f2EtobvzzQn7titD0Hs+afZVgd2C1GXDn cloud-test
+      prime_user: cloud-config-mgmt
+  PROD:
+    linux:
+      public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAnt0G0zNKzaSbTLEqFbWWw3bLKoQhH+FzdBuVzUFDmB cloud-prod
+      prime_user: cloud-config-mgmt
+
+# _REPOS:
+#   distrib_store: "{{ gitea_url }}/api/packages/cloud/generic"
+#   docker_registry: "{{ gitea_url | urlsplit('hostname') }}"
+#   docker_image_path: "{{ gitea_url | urlsplit('hostname') }}/cloud/product"

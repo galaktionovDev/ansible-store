@@ -1,0 +1,57 @@
+---
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- name: Ensure node_exporter directory exists
+  ansible.builtin.file:
+    path: "{{ node_exporter_path }}"
+    state: directory
+    mode: '0755'
+  ignore_errors: yes
+
+- name: Install node exporter
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_url }}.tar.gz"
+    dest: "{{ node_exporter_path }}/{{ node_exporter_name }}.tar.gz"
+    mode: "0644"
+    headers: "{}"
+    validate_certs: true
+  ignore_errors: yes
+
+- name: Unpack node_exporter tarball
+  ansible.builtin.unarchive:
+    src: "{{ node_exporter_path }}/{{ node_exporter_name }}.tar.gz"
+    dest: "{{ node_exporter_path }}"
+    mode: "0755"
+    remote_src: true
+  ignore_errors: yes
+
+- name: Set SELinux context for node_exporter executable
+  ansible.builtin.command:
+    cmd: chcon -t bin_t {{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+  ignore_errors: yes
+
+- block:
+    - include_tasks: configure-firewalld.yml
+  when: ansible_distribution.split(' ') | first | lower in ['almalinux', 'centos', 'oraclelinux']
+
+- name: Configure node_exporter systemd service
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    mode: '0644'
+  notify:
+    - reload systemd
+    - start node_exporter
+  ignore_errors: yes
+
+- name: Enable node_exporter service
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: yes
+    state: started
+  ignore_errors: yes
+

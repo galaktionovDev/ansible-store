@@ -1,0 +1,38 @@
+---
+- name: Wait server availability
+  wait_for_connection:
+    connect_timeout: 5
+    delay: 0
+    sleep: 5
+    timeout: 240
+
+- setup:
+
+- name: Create cloud user
+  user:
+    name: "{{ prime_user }}"
+    home: "/home/{{ prime_user }}"
+    shell: /bin/bash
+    state: present
+
+- name: Sudo priveleges for cloud user
+  lineinfile:
+    path: "/etc/sudoers.d/{{ prime_user }}"
+    mode: 0440
+    state: present
+    create: yes
+    line: "{{ prime_user }} ALL=(ALL) NOPASSWD: ALL"
+    validate: "/sbin/visudo -cf %s"
+
+- name: Put cloud public key file
+  authorized_key:
+    user: "{{ prime_user }}"
+    key: "{{ prime_user_public_key }}"
+    exclusive: true
+
+- name: Fix owner
+  file:
+    path: "/home/{{ prime_user }}"
+    owner: "{{ prime_user }}"
+    group: "{{ prime_user }}"
+    recurse: true

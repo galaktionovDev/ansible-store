@@ -1,0 +1,71 @@
+---
+
+- name: Revoke all roles before grant
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "REVOKE ALL ON DATABASE {{ databasename }} FROM {{ username }};"
+  run_once: true
+
+- name: Revoke all privileges from all tables and sequences in the public schema
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: |
+      REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM {{ username }};
+      REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM {{ username }};
+      REVOKE ALL ON SCHEMA public FROM {{ username }} CASCADE;
+  run_once: true
+
+
+- name: Slurp the Odyssey configuration file
+  slurp:
+    src: "{{ odyssey_config_path }}"
+  register: odyssey_config
+
+#- name: Output block_exists
+#  debug:
+#    msg: "{{ (odyssey_config.content | b64decode) }}"
+
+#- name: Check if the specific user block exists
+#  set_fact:
+#    block_exists: "{{ 'ANSIBLE MANAGED BLOCK for {{ username }} in {{ databasename }}' in (odyssey_config.content | b64decode) }}"
+
+- name: Check if the specific user block exists
+  set_fact:
+    block_exists: "{{ (odyssey_config.content | b64decode) | regex_search('ANSIBLE MANAGED BLOCK for ' + username + ' in ' + databasename) }}"
+
+#- name: Output block_exists
+#  debug:
+#    msg: "{{ block_exists }}"
+
+
+- name: Remove the existing block if it exists
+  blockinfile:
+    path: "{{ odyssey_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ username }} in {{ databasename }}"
+    block: ''
+    state: 'absent'
+  when: block_exists
+  notify: restart odyssey
+
+#- name: Remove a configuration block
+#  blockinfile:
+#    path: "{{ odyssey_config_path }}"
+#    marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ username }} in {{ databasename }}"
+#    state: absent
+#  notify: restart odyssey
+
+
+- set_stats:
+    data:
+      db_roles:
+        username: "{{ username }}"
+        rolename: "{{ rolename }}"
+        databasename: "{{ databasename }}"

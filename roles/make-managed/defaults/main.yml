@@ -1,0 +1,4 @@
+---
+ansible_become: true
+prime_user: "{{ _ENVS[environment_type]['linux'].prime_user }}"
+prime_user_public_key: "{{ _ENVS[environment_type]['linux'].public_key }}"

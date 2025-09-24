@@ -1,0 +1,9 @@
+---
+
+- name: Start a nginx container with 8080 port exposed
+  raw: "docker run --name cloudbox-nginx -d --restart=always -p 8080:80 -v {{ app_data_volume_name }}:{{ container_data_path }} -v {{ app_config_volume_name }}:{{ container_config_path }} {{ nexus_docker_url }}/nginx:{{ nginx_version }}"
+
+- set_stats:
+    data:
+      connection_url: "{{ 'http://' + machine['default_v4_address'] + ':' + nginx_port }}"
+

@@ -1,0 +1,15 @@
+---
+
+# Default value for is_shared_resource
+is_shared_resource: false
+
+# Default empty shared_resource_pool
+shared_resource_pool: {}
+
+# Fixed values for shared_resource_pool when is_shared_resource is true
+fixed_endpoint: "https://example.test.cld:6443"
+fixed_platform: "example_platform"
+fixed_verify_ssl: false
+fixed_nova_harbor: "core.harbor.test.cld"
+fixed_application_domain: "apps.test.cld"
+fixed_persistent_storage_size: 17 

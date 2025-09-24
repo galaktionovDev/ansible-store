@@ -1,0 +1,19 @@
+---
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- include_tasks: config-chrony.yml
+  when: ansible_distribution.split(' ') | first | lower in ['almalinux', 'centos', 'red']
+
+
+- include_tasks: config-systemd-timesyncd.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'debian', 'astra']
+
+
+
+
+
+
+

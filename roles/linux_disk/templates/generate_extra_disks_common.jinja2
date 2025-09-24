@@ -1,0 +1,50 @@
+{%- if platform == 'hyper_v' -%}
+    {%- for disk in extra_disks -%}
+        {%- if 'path' in disk -%}
+            {%- set _ = disk.update(hyper_path=disk.path) -%}
+            {%- set _ = disk.pop('path') -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+{%- set old = [] -%}
+{%- for disk in extra_disks -%}
+    {%- if 'path' in disk -%}
+        {%- set _ = old.append(disk.path | basename) -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for disk_name, disk_params in disk_devices | dictsort if disk_name != boot_disk_name -%}
+    {%- set disk_size_gb = disk_params.sectors | int * disk_params.sectorsize | int // 1024 ** 3 -%}
+    {%- set is_break = false -%}
+    {%- for disk in extra_disks if 'path' in disk and disk_name in old and not is_break %}
+        {%- if disk_params.serial is defined -%}
+                {%- set _ = disk.update(serial=disk_params.serial) -%}
+                {%- if platform == 'hyper_v' -%}
+                    {%- set _ = disk.update(uuid=disk_params.serial) -%}
+                {%- endif -%}
+        {%- elif disk.path.split('/') | last == disk_name and disk_params.links.ids is defined -%}
+            {%- for id in disk_params.links.ids if (id.startswith('virtio-') or id.startswith('scsi-')) and not is_break -%}
+                    {%- set _ = disk.update(serial=id) -%}
+                    {%- set is_break = true %}
+            {%- endfor %}
+        {%- endif %}
+    {%- endfor %}
+    {%- set is_break = false -%}
+    {%- for disk in extra_disks if 'path' not in disk and disk_name not in old and not is_break -%}
+        {%- if disk.size == disk_size_gb and disk_name not in old -%}
+            {%- set _ = disk.update(path='/dev/' + disk_name) -%}
+            {%- if disk_params.serial is defined -%}
+                {%- set _ = disk.update(serial=disk_params.serial) -%}
+                {%- if platform == 'hyper_v' -%}
+                    {%- set _ = disk.update(uuid=disk_params.serial) -%}
+                {%- endif -%}
+            {%- else -%}
+                {%- for id in disk_params.links.ids if (id.startswith('virtio-') or id.startswith('scsi-')) and not is_break -%}
+                    {%- set _ = disk.update(serial=id) -%}
+                    {%- set is_break = true %}
+                {%- endfor %}
+            {%- endif %}
+            {%- set is_break = true %}
+        {%- endif %}
+    {%- endfor %}
+{%- endfor -%}
+{{ extra_disks | sort(attribute='path') | tojson }}

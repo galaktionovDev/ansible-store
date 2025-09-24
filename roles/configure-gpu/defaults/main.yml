@@ -1,0 +1,7 @@
+---
+
+ansible_become: true
+driver_packages_url: "{{ nexus_url }}/repository/products-raw/gpus/"
+driver_packages_path: "/app/driver_packages"
+...
+

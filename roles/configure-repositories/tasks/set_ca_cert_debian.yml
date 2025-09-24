@@ -1,0 +1,29 @@
+---
+
+- name: Fetch cld CA
+  when: ca_url is defined
+  ansible.builtin.uri:
+    url: "{{ ca_url }}"
+    validate_certs: false
+    return_content: true
+  register: ca_crt
+
+- name: Save certificates to system directory
+  copy:
+    content: "{{ item }}"
+    dest: "/usr/local/share/ca-certificates/cld-ca-{{ cert_idx + 1 }}.crt"
+    mode: "0644"
+  loop: "{{ ca_crt.content | community.crypto.split_pem }}"
+  loop_control:
+    index_var: cert_idx
+
+- name: Update CA trusts
+  command: update-ca-certificates
+  changed_when: false
+
+- name: Restart services
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop: "{{ set_ca_trust_restart_services }}"
+  when: set_ca_trust_restart_services | length > 0

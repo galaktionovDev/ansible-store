@@ -1,0 +1,12 @@
+---
+
+app_name: "redis"
+ansible_become: true
+redis_port: "6379"
+redis_cloud_container_name: "cloudbox-{{ app_name }}"
+redis_version: "7.0.11"
+app_volume_prefix: "cloud"
+app_data_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-data"
+app_config_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-config"
+container_data_path: "/bitnami/redis/data"
+container_config_path: "/opt/bitnami/redis/etc"

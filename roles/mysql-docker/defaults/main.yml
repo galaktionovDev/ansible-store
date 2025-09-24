@@ -1,0 +1,17 @@
+---
+
+app_name: "mysql"
+ansible_become: true
+mysql_version: 8.0.33
+docker_file_path: "/tmp/docker-dockerfile-path"
+mysql_port: "3306"
+mysql_cloud_container_name: "cloudbox-{{ app_name }}"
+app_volume_prefix: "cloud"
+
+app_data_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-data"
+app_config_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-config"
+app_initdb_volume_name: "{{ app_volume_prefix }}-{{ app_name }}-initdb"
+
+container_data_path: "/var/lib/mysql/"
+container_config_path: "/etc/mysql/"
+container_initdb_path: "/docker-entrypoint-initdb.d/"

@@ -1,0 +1,138 @@
+---
+
+#- name: Revoke all roles before grant
+#  postgresql_query:
+#    login_db: "{{ databasename }}"
+#    login_host: "{{ postgres_host }}"
+#    login_user: "{{ postgres_user }}"
+#    login_password: "{{ postgres_password }}"
+#    query: "REVOKE pg_read_all_data FROM {{ username }};"
+#  run_once: true
+
+- name: Revoke all roles before grant
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "REVOKE ALL ON DATABASE {{ databasename }} FROM {{ username }};"
+  run_once: true
+
+- name: Revoke all privileges from all tables and sequences in the public schema
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: |
+      REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM {{ username }};
+      REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM {{ username }};
+      REVOKE ALL ON SCHEMA public FROM {{ username }} CASCADE;
+  run_once: true
+
+#- name: Revoke all privileges from public schema before granting new ones
+#  postgresql_query:
+#    login_db: "{{ databasename }}"
+#    login_host: "{{ postgres_host }}"
+#    login_user: "{{ postgres_user }}"
+#    login_password: "{{ postgres_password }}"
+#    query: "REVOKE ALL ON SCHEMA public FROM {{ username }} CASCADE;"
+#  run_once: true
+
+#- name: Revoke all additional roles before grant
+#  postgresql_query:
+#    login_db: "{{ databasename }}"
+#    login_host: "{{ postgres_host }}"
+#    login_user: "{{ postgres_user }}"
+#    login_password: "{{ postgres_password }}"
+#    query: "REVOKE USAGE, CREATE ON SCHEMA public FROM {{ username }};"
+#  run_once: true
+
+- name: Grant role on database for read only users
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "GRANT pg_read_all_data TO {{ username }};"
+  run_once: true
+#  when: rolename | lower == 'read'
+
+#- name: Grant role on database for read/write users
+#  postgresql_query:
+#    login_db: "{{ databasename }}"
+#    login_host: "{{ postgres_host }}"
+#    login_user: "{{ postgres_user }}"
+#    login_password: "{{ postgres_password }}"
+#    query: "GRANT pg_read_all_data TO {{ username }};"
+#  run_once: true
+#  when: rolename | lower == 'read/write'
+
+#- name: Grant additional role on schema for read/write users
+#  postgresql_query:
+#    login_db: "{{ databasename }}"
+#    login_host: "{{ postgres_host }}"
+#    login_user: "{{ postgres_user }}"
+#    login_password: "{{ postgres_password }}"
+#    query: "GRANT USAGE, CREATE ON SCHEMA public TO {{ username }};"
+#  run_once: true
+#  when: rolename | lower == 'read/write'
+
+- name: Grant full access on schema for read/write users
+  postgresql_query:
+    login_db: "{{ databasename }}"
+    login_host: "{{ keepalived_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ postgres_user }}"
+    login_password: "{{ postgres_password }}"
+    query: "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {{ username }}; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {{ username }}; GRANT USAGE, CREATE ON SCHEMA public TO {{ username }};"
+  run_once: true
+  when: rolename | lower == 'read/write'
+
+#- name: Slurp the Odyssey configuration file
+#  slurp:
+#    src: "{{ odyssey_config_path }}"
+#  register: odyssey_config
+#
+#- name: Check if the specific user block exists
+#  set_fact:
+#    block_exists: "{{ (odyssey_config.content | b64decode) | regex_search('ANSIBLE MANAGED BLOCK for ' + username + ' in ' + databasename) }}"
+#
+#- name: Remove the existing block if it exists
+#  blockinfile:
+#    path: "{{ odyssey_config_path }}"
+#    marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ username }} in {{ databasename }}"
+#    block: ''
+#    state: 'absent'
+#  when: block_exists
+#  notify: restart odyssey
+
+- name: Insert the new configuration block
+  blockinfile:
+    path: "{{ odyssey_config_path }}"
+    block: |
+      database "{{ databasename }}" {
+        user "{{ username }}" {
+          authentication "md5"
+          password "{{ user_password }}"
+          storage "postgres_server"
+          pool "{{ 'session' if rolename == 'read' else 'transaction' }}"
+          log_debug yes
+          log_query yes
+        }
+      }
+    marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ username }} in {{ databasename }}"
+    insertafter: EOF
+    backup: yes
+  notify: restart odyssey
+
+
+- set_stats:
+    data:
+      db_roles:
+        username: "{{ username }}"
+        rolename: "{{ rolename }}"
+        databasename: "{{ databasename }}"

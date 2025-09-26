@@ -2,7 +2,7 @@
 
 nexus_hostname: "{{ nexus_url | urlsplit('hostname') }}"
 ansible_become: true
-ca_url: "{{ nexus_url }}/repository/products-raw/CA.crt"
+ca_url: "{{ nexus_url }}/repository/products-raw/CA-chain.crt"
 
 
 set_repositories_repo_keys:

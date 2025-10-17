@@ -1,0 +1,116 @@
+---
+
+#- name: Check existance of eponymous mountpoint
+#  fail:
+#    msg: "There is no such mountpoint as {{ mount }}"
+#  when: lv_name == ""
+
+- name: Print ansible_cmdline
+  debug:
+    var: ansible_cmdline
+
+- name: Print disk_devices
+  debug:
+    var: disk_devices
+
+- name: Print ansible_mounts
+  debug:
+    var: ansible_mounts
+
+- name: Print ansible_device_links
+  debug:
+    var: ansible_device_links
+
+- name: Print disks_to_create
+  debug:
+    var: disks_to_create
+
+- name: Print disks_to_resize
+  debug:
+    var: disks_to_resize
+
+- block:
+  - name: Create app volume group
+    include_tasks: manage_vg.yml
+
+- block:
+  - name: Add disk into app volume group
+    include_tasks: expand_vg.yml
+
+  - debug:
+      var: app_disk_list
+
+  - debug:
+      var: action_disks_to_resize
+
+  - name: Re-scan disk size
+    shell:
+      _raw_params: "echo 1 > /sys/block/{{ item.split('/') | last }}/device/rescan"
+    loop: "{{ action_disks_to_resize|flatten(levels=1) }}"
+    when: platform | lower != 'openstack' and platform | lower != 'yandex_cloud' and platform | lower != 'k2_cloud'
+
+  - block:
+    - name: Force reread disks
+      command: "pvresize -v {{ item }}"
+      loop: "{{ [action_disks_to_resize|flatten(levels=1)|first] }}"
+
+    - name: Resize physical volume (raw)
+      command: "pvresize -v {{ item }}"
+      loop: "{{ action_disks_to_resize|flatten(levels=1) }}"
+
+    - name: Output disk information
+      debug:
+        var: disk_devices
+
+#
+#    - name: Resize the logical volume with FS
+#      command: lvextend -r -l+100%FREE {{ app_vg_name }}/{{ lv_name }}
+
+
+    # - name: Resize the logical volume
+    #   lvol:
+    #     vg: "{{ app_vg_name }}"
+    #     lv: "{{ lv_name }}"
+    #     size: "+100%FREE"
+    #     resizefs: true
+    rescue:
+      - name: Force reread disks (rescue)
+        command: "pvresize -v --config 'backup{backup_dir=\"/tmp\"} backup{archive_dir=\"/tmp\"}' {{ item }}"
+        loop: "{{ [action_disks_to_resize|flatten(levels=1)|first] }}"
+
+      - name: Resize physical volume (raw) (rescue)
+        command: "pvresize -v --config 'backup{backup_dir=\"/tmp\"} backup{archive_dir=\"/tmp\"}' {{ item }}"
+        loop: "{{ action_disks_to_resize|flatten(levels=1) }}"
+
+#      - name: Resize physical volume (raw) (rescue)
+#        command: "lvextend -r -l+100%FREE {{ app_vg_name }}/{{ lv_name }} --config 'backup{backup_dir=\"/tmp\"} backup{archive_dir=\"/tmp\"}' "
+
+- block:
+#  - name: Create app volume group
+#    include_tasks: manage_vg.yml
+
+  - include_tasks: loops/lvm_lv.yml
+    with_items: "{{ app_lvs }}"
+    loop_control:
+      loop_var: lv
+      extended: true
+
+  rescue:
+  - fail:
+      msg: "Error while creating logical volume"
+
+- meta: flush_handlers
+
+- name: update_facts
+  setup:
+    gather_subset: hardware
+
+- name: Set stats
+  set_stats:
+    data:
+      disk_devices_data:
+        extra_disks: "{{ generated_extra_disks }}"
+        extra_mounts: "{{ generated_extra_mounts }}"
+
+
+...

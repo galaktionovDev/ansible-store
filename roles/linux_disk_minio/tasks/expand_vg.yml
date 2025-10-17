@@ -1,0 +1,20 @@
+---
+
+- name: Get current physical volumes
+  command: "pvs --noheadings -o pv_name"
+  register: pvs_list
+  changed_when: false
+
+- name: Format pvs_list to list
+  set_fact:
+    formatted_pvs_list: "{{ pvs_list.stdout_lines | map('trim') | list }}"
+
+- name: Find new disks that are not in the volume group yet
+  set_fact:
+    new_disks: "{{ action_disks_to_create | difference(formatted_pvs_list) }}"
+
+- name: Extend volume group with new disks
+  command: >
+    vgextend "{{ app_vg_name }}" {{ new_disks | join(' ') }}
+  when: new_disks | length > 0
+  notify: update_facts

@@ -1,0 +1,11 @@
+{%- set old = namespace(value=[]) -%}
+{%- set disks = namespace(value=[]) -%}
+{%- for disk in extra_disks -%}
+    {%- if 'path' in disk -%}
+        {%- set _ = old.value.append(disk.path | basename) -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for disk_name, disk_params in disk_devices.items() if disk_name != boot_disk_name -%}
+    {%- set _ = disks.value.append(disk_name) -%}
+{%- endfor -%}
+{{ disks.value | tojson }}

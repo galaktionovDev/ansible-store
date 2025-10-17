@@ -1,0 +1,54 @@
+---
+
+- name: Check interface existance
+  fail:
+    msg: "Interface '{{ interface }}' is not exist yet or it's not defined"
+  when: interface is not defined or (interface is defined and interface not in allowed_interfaces)
+
+- name: Gathering facts
+  setup:
+
+
+- name: "Run interface {{ interface }}"
+  include_tasks: "{{ interface }}.yml"
+
+
+- name: Print ansible_cmdline
+  debug:
+    var: ansible_cmdline
+
+
+- name: Print disk_devices
+  debug:
+    var: disk_devices
+
+
+- name: Print ansible_mounts
+  debug:
+    var: ansible_mounts
+
+- name: Print boot_partition_name
+  debug:
+    var: boot_partition_name
+
+
+- name: Print boot_disk_name
+  debug:
+    var: boot_disk_name
+
+- name: Print app_lvs
+  debug:
+    var: app_lvs
+
+- name: Print ansible generated_extra_mounts
+  debug:
+    var: generated_extra_mounts
+
+
+- name: Print ansible generated_extra_disks
+  debug:
+    var: generated_extra_disks
+
+
+
+...

@@ -1,0 +1,19 @@
+{% set result = [] %}
+{% for mount in ansible_mounts -%}
+    {%- if mount.device.startswith('/dev/mapper/') %}
+        {%- set device = mount.device.split('/') | last %}
+        {%- if '-' in device %}
+            {%- set vg, lv = device.rsplit('-', 1) %}
+        {%- else %}
+            {%- set vg = device %}
+            {%- set lv = "" %}
+        {%- endif %}
+        {%- for lv_name, lv_params in ansible_lvm.lvs.items() %}
+            {%- if lv_name == lv and lv_params.vg == vg and lv_params.vg == app_vg_name %}
+                {%- set _ = result.append({'mount': mount.mount, 'fstype': mount.fstype, 'options': mount.options,
+                'device': mount.device, 'size': lv_params.size_g | float | round(2, 'common')}) %}
+            {%- endif %}
+        {%- endfor %}
+    {%- endif %}
+{%- endfor %}
+{{ result | tojson }}

@@ -1,0 +1,6 @@
+{%- for mp in ansible_mounts -%}
+    {%- if mount == mp.mount -%}
+        {{ mp.device.split('-')[-1] }}
+    {%- endif -%}
+{%- endfor %}
+

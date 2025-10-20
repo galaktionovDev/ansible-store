@@ -18,3 +18,10 @@
   user:
     name: "{{ ansible_user }}"
     password: "{{ blank_password }}"
+
+- name: Disable cloud-init after first boot
+  ansible.builtin.file:
+    path: /etc/cloud/cloud-init.disabled
+    state: touch
+  ignore_errors: yes
+  

@@ -1,0 +1,10 @@
+{% set generated_disks = [] -%}
+{% for disk in extra_disks -%}
+  {%- for device_name, device_data in disk_devices.items() %}
+    {%- if disk.uuid | replace('-', '') | lower in device_data.wwn %}
+      {%- set disk_info = {'size': device_data.size, 'uuid': disk.uuid | replace('-', '') | lower, 'path': '/dev/' + device_name} %}
+      {%- set _ = generated_disks.append(disk_info) %}
+    {%- endif %}
+  {%- endfor %}
+{% endfor -%}
+{{ generated_disks|tojson }}

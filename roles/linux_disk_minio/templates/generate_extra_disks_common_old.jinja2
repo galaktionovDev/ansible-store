@@ -1,0 +1,16 @@
+{%- set matched_disks = [] -%}
+{%- for disk in extra_disks %}
+  {%- set cleaned_uuid = disk.uuid.replace('-', '').lower() %}
+  {%- for device_name, ids_list in ansible_device_links.ids.items() %}
+    {%- for id_entry in ids_list %}
+      {%- set cleaned_id_entry = id_entry.replace('-', '').lower() %}
+      {%- if cleaned_uuid in cleaned_id_entry %}
+        {%- set disk_info = {'size': disk.size, 'uuid': disk.uuid, 'path': '/dev/' + device_name} %}
+        {%- if disk_info not in matched_disks %}
+          {%- set _ = matched_disks.append(disk_info) %}
+        {%- endif %}
+      {%- endif %}
+    {%- endfor %}
+  {%- endfor %}
+{%- endfor %}
+{{ matched_disks | tojson }}

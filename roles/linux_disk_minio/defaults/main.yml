@@ -1,0 +1,23 @@
+---
+
+ansible_become: true
+
+create_fs: true
+
+set_repositories_required_repo:
+  yum:
+    el7:
+      - name:  cld-repository-el7
+        description: "cld repository el7"
+    el8:
+      - name:  cld-repository-el8
+        description: "cld repository el8"
+
+
+allowed_interfaces:
+- initialize
+- expand
+- expand_boot
+- get_manage_info
+- add_mount_point
+...

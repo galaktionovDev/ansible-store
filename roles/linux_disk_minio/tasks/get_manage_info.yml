@@ -1,0 +1,8 @@
+---
+
+- name: Set stats
+  set_stats:
+    data:
+      disk_devices_data:
+        extra_disks: "{{ generated_extra_disks }}"
+        boot_disk: "{{ boot_disk_modified }}"

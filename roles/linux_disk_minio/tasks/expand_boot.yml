@@ -1,0 +1,424 @@
+---
+
+
+#"""
+#parted и growpart для того, чтобы расширить диск до 100%
+#pvresize и lvol для LVM
+#resize2fs, если нет LVM
+#sgdisk, если нужно расширить таблицу разделов
+#"""
+
+- name: Display ansible_distribution_major_version
+  debug:
+    msg: "ansible_distribution_major_version is {{ ansible_distribution_major_version }}"
+  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux'])
+
+- name: Determine the appropriate repo list
+  set_fact:
+    selected_repositories: "{{ set_repositories_required_repo.yum['el' + ansible_distribution_major_version] }}"
+  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux'])
+
+- name: Gathering facts
+  setup:
+
+- name: Print boot_disk_name
+  debug:
+    var: boot_disk_name
+
+- name: Print device name
+  debug:
+    var: disk_devices
+
+- name: Print root_device_name
+  debug:
+    var: root_device_name
+
+- name: Print root_partition_name
+  debug:
+    var: root_partition_name
+
+- name: Print root_vg_name
+  debug:
+    var: root_vg_name
+
+- name: Print root_lv_name
+  debug:
+    var: root_lv_name
+
+- name: Check LVM physical volume status for /dev/sda
+  ansible.builtin.shell: pvs --noheadings -o pv_name | grep '/dev/{{ boot_disk_name }}'
+  register: pvs_check
+  ignore_errors: yes
+
+- name: Determine if /dev/sda is a physical volume
+  set_fact:
+    boot_is_pv: "{{ pvs_check.rc == 0 }}"
+
+- name: Print root_lv_name
+  debug:
+    var: boot_is_pv
+
+
+# Установка пакетов APT
+- name: "Install Docker for Astra"
+  block:
+    - name: Update apt cache
+      command: apt-get update
+
+    - name: "Install components using apt-get command"
+      command: apt-get install -y --allow-unauthenticated cloud-utils gdisk parted
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+  ignore_errors: true
+# Установка пакетов APT
+
+#- name: Прервать выполнение на всех хостах после ошибки
+#  meta: end_play
+
+# Установка пакетов YUM
+#- name: Обновить все пакеты
+#  dnf:
+#    name: "*"
+#    state: latest
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux'])
+#  ignore_errors: yes
+#-
+#- name: Очистить кэш dnf
+#  dnf:
+#    name: "*"
+#    state: latest
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#    update_cache: yes
+#    cache_valid_time: 0  # Принудительно обновляет кэш
+#  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux'])
+
+#- name: Очистить кэш dnf напрямую
+#  command: dnf clean all
+#  when: (ansible_distribution.split(' ') | first | lower in ['red'])
+#
+#- name: Обновить кэш dnf
+#  dnf:
+#    name: "*"
+#    state: latest
+#    update_cache: yes
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#  when: (ansible_distribution.split(' ') | first | lower in ['red'])
+
+- name: Update YUM cache for specific repos
+  yum:
+    update_cache: yes
+    disablerepo: '*'
+    enablerepo: "{{ item.name }}"
+  when:
+    - item.name is defined
+    - (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux'])
+  ignore_errors: yes
+  loop: "{{ selected_repositories }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Install cloud-utils-growpart using dnf
+  dnf:
+    name:
+      - cloud-utils-growpart
+    state: latest
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'oraclelinux'])
+  ignore_errors: yes
+
+- name: Install cloud-utils-growpart using dnf
+  dnf:
+    name:
+      - gdisk
+    state: latest
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'oraclelinux'])
+  ignore_errors: yes
+
+#- name: Обновить все пакеты
+#  yum:
+#    name: "*"
+#    state: latest
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#  when: (ansible_distribution.split(' ') | first | lower in ['red', 'almalinux'])
+#  ignore_errors: yes
+
+#- name: Очистить весь кэш yum
+#  command: yum clean all
+#  when: (ansible_distribution.split(' ') | first | lower in ['centos'])
+
+
+- name: Install gdisk using yum
+  yum:
+    name:
+      - cloud-utils-growpart
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+    state: latest
+  when: (ansible_distribution.split(' ') | first | lower in ['centos'])
+  ignore_errors: yes
+
+
+# Установка пакетов YUM
+
+
+- block:
+
+  - name: Re-scan disk size
+    shell:
+      _raw_params: "echo 1 > /sys/block/{{ boot_disk_name }}/device/rescan"
+    ignore_errors: yes
+
+  - name: Determine partition table type
+    command: parted /dev/{{ boot_disk_name }} --script print
+    register: parted_output
+    ignore_errors: yes
+
+  - name: Check if partition table is MBR
+    set_fact:
+      is_mbr: "{{ 'msdos' in parted_output.stdout }}"
+    ignore_errors: yes
+
+
+  - name: Print is_mbr
+    debug:
+      var: is_mbr
+
+#  - name: Print root_lv_name
+#    debug:
+#      var: /dev/{{ boot_disk_name }}
+
+  - name: Find extended partition
+    shell: parted /dev/{{ boot_disk_name }} print | grep 'extended' | awk '{print $1}'
+    register: extended_partition
+    when: is_mbr
+    ignore_errors: yes
+#  - name: Find extended partition
+#    shell: lsblk -ln -o NAME,TYPE /dev/vda | grep 'extended' | awk '{print $1}'
+#    register: extended_partition
+#    when: is_mbr
+#    ignore_errors: yes
+
+  - name: Check if extended partition exists
+    set_fact:
+      extended_exists: "{{ extended_partition.stdout | trim != '' }}"
+    ignore_errors: yes
+
+  - name: Print extended_partition
+    debug:
+      var:  extended_partition.stdout | trim
+
+  - name: Resize extended partition
+    command: parted /dev/{{ boot_disk_name }} resizepart "{{ extended_partition.stdout | trim | int }}" 100%
+    when: extended_exists
+    ignore_errors: yes
+
+
+  - name: Расширить GPT таблицу разделов для использования всего дискового пространства
+    ansible.builtin.command:
+      cmd: "sgdisk -e /dev/{{ boot_disk_name }}"
+    when: not is_mbr
+    ignore_errors: yes
+
+
+# block LVM
+- name: "Run expand_boot_with_lvm.yml"
+  include_tasks: "expand_boot_with_lvm.yml"
+  when: boot_is_pv
+# block LVM
+
+# block не LVM
+- name: "Run expand_boot_without_lvm.yml"
+  include_tasks: "expand_boot_without_lvm.yml"
+  when: not boot_is_pv
+# block не LVM
+
+
+# block Hyper-V
+# block Hyper-V
+
+#- name: Check for LVM physical volume on /dev/sda
+#  community.general.pvs:
+#    pvs: /dev/sda
+#  register: pv_result
+#  ignore_errors: True
+#
+#- name: Display if /dev/sda is a physical volume
+#  debug:
+#    msg: "/dev/sda is part of LVM."
+#  when: pv_result.failed == False
+#
+#- name: Display if /dev/sda is not a physical volume
+#  debug:
+#    msg: "/dev/sda is not part of LVM."
+#  when: pv_result.failed == True
+
+#- name: Прервать выполнение на всех хостах после ошибки
+#  meta: end_play
+#
+#- name: Install cloud-utils-growpart using dnf
+#  dnf:
+#    name:
+#      - cloud-utils-growpart
+#    state: present
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#  when: (ansible_distribution.split(' ') | first | lower not in ['centos'] and platform | lower == 'yandex_cloud')
+#
+#- name: Install gdisk using dnf
+#  dnf:
+#    name:
+#      - gdisk
+#    state: present
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#  when: (ansible_distribution.split(' ') | first | lower not in ['centos'] and platform | lower == 'hyper_v')
+#
+#- name: Install gdisk using yum
+#  yum:
+#    name:
+#      - gdisk
+#    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#    disablerepo: "*"
+#    state: present
+#  when: (ansible_distribution.split(' ') | first | lower in ['centos'] and platform | lower == 'hyper_v')
+#
+#- block:
+#
+#  - name: Re-scan disk size
+#    shell:
+#      _raw_params: "echo 1 > /sys/block/{{ boot_disk_name }}/device/rescan"
+#    when: (platform | lower != 'hyper_v' and  platform | lower != 'yandex_cloud' and platform | lower != 'openstack')
+
+# UBUNTU VSPHERE
+#  - name: Расширить GPT таблицу разделов для использования всего дискового пространства
+#    ansible.builtin.command:
+#      cmd: "sgdisk -e /dev/{{ boot_disk_name }}"
+#    ignore_errors: yes
+
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Yandex Cloud
+#    ansible.builtin.command:
+#      cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#    ignore_errors: yes
+#
+#  - name: Изменения размера файловой системы для yandex_cloud
+#    ansible.builtin.command:
+#      cmd: "resize2fs /dev/{{ boot_disk_name }}{{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#    ignore_errors: yes
+
+#  - name: Прервать выполнение на всех хостах после ошибки
+#    meta: end_play
+#
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+#    ansible.builtin.command:
+#      cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+#    ignore_errors: yes
+
+#  - name: Force reread disks
+#    command: "pvresize -v /dev/{{ root_partition_name }}"
+#    when: platform | lower != 'yandex_cloud'
+#
+#  - name: Resize the logical volume
+#    lvol:
+#      vg: "{{ root_vg_name }}"
+#      lv: "{{ root_lv_name }}"
+#      size: "+100%FREE"
+#      resizefs: true
+#    when: platform | lower != 'yandex_cloud'
+# UBUNTU VSPHERE
+
+
+# ASTRA ZVIRT
+#  - name: Расширить GPT таблицу разделов для использования всего дискового пространства
+#    ansible.builtin.command:
+#      cmd: "sgdisk -e /dev/{{ boot_disk_name }}"
+#    ignore_errors: yes
+
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+#    ansible.builtin.command:
+#      cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+#    ignore_errors: yes
+
+#  - name: Force reread disks
+#    command: "pvresize -v /dev/{{ root_partition_name }}"
+#    when: platform | lower != 'yandex_cloud'
+#
+#  - name: Resize the logical volume
+#    lvol:
+#      vg: "{{ root_vg_name }}"
+#      lv: "{{ root_lv_name }}"
+#      size: "+100%FREE"
+#      resizefs: true
+#    when: platform | lower != 'yandex_cloud'
+# ASTRA ZVIRT
+
+# Если вот эта команда закончилась с ошибкой, то нужно выполнить консольной командой, тогда можно будет убрать условие про платформы
+# GPT ошибку можно будет игнорировать
+# как понять, boot в LVM или нет?
+#  - name: Resize partition
+#    community.general.parted:
+#      device: "/dev/{{ boot_disk_name }}"
+#      number: "{{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }}"
+#      state: present
+#      part_end: 100%
+#      resize: true
+#    when: (platform | lower != 'hyper_v' and  platform | lower != 'yandex_cloud')
+
+#  - name: Resize partition for Yandex Cloud
+#    community.general.parted:
+#      device: "/dev/{{ boot_disk_name }}"
+#      number: "{{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#      state: present
+#      part_end: 100%
+#      resize: true
+#    when: (platform | lower == 'yandex_cloud')
+
+#  - name: Расширить GPT таблицу разделов для использования всего дискового пространства
+#    ansible.builtin.command:
+#      cmd: "sgdisk -e /dev/{{ boot_disk_name }}"
+#    ignore_errors: yes
+#    when: platform | lower == 'hyper_v'
+#
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Yandex Cloud
+#    ansible.builtin.command:
+#      cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#    ignore_errors: yes
+#    when: platform | lower == 'yandex_cloud'
+#
+#  - name: Изменения размера файловой системы для yandex_cloud
+#    ansible.builtin.command:
+#      cmd: "resize2fs /dev/{{ boot_disk_name }}{{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+#    ignore_errors: yes
+#    when: platform | lower == 'yandex_cloud'
+#
+#  - name: Изменить размер раздела на boot до 100% доступного пространства для Hyper-V
+#    ansible.builtin.command:
+#      cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_partition_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+#    ignore_errors: yes
+#    when: platform | lower == 'hyper_v'
+#
+##  - name: Изменить размер раздела на boot до 100% доступного пространства для Yandex Cloud
+##    ansible.builtin.command:
+##      cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+##    ignore_errors: yes
+##    when: platform | lower == 'yandex_cloud'
+#
+#  - name: Force reread disks
+#    command: "pvresize -v /dev/{{ root_partition_name }}"
+#    when: platform | lower != 'yandex_cloud'
+#
+#  - name: Resize the logical volume
+#    lvol:
+#      vg: "{{ root_vg_name }}"
+#      lv: "{{ root_lv_name }}"
+#      size: "+100%FREE"
+#      resizefs: true
+#    when: platform | lower != 'yandex_cloud'
+
+...

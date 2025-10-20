@@ -1,0 +1,8 @@
+{% set vg_prefix, system_vg_index = system_vg_name.split('_') -%}
+{%- set app_vg_index = (system_vg_index | int + 1) | string -%}
+{%- if app_vg_index | length == 1 -%}
+    {{ vg_prefix + '_0' + app_vg_index }}
+{%- else -%}
+    {{ vg_prefix + '_' + app_vg_index }}
+{%- endif %}
+

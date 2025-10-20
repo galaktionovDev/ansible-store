@@ -1,0 +1,38 @@
+---
+
+- block:
+
+  - block:  # Основной блок для первой задачи
+    
+    - name: Изменить размер раздела на boot до 100% доступного пространства
+      ansible.builtin.command:
+        cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+    rescue:  # Блок, который выполнится, если в основном блоке произошла ошибка
+    - block:  # Вторая задача, если первая не удалась
+      - name: Resize partition
+        community.general.parted:
+          device: "/dev/{{ boot_disk_name }}"
+          number: "{{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+          state: present
+          part_end: 100%
+          resize: true
+      rescue:  # Если вторая задача тоже завершилась с ошибкой
+      - name: Изменить размер раздела на boot до 100% доступного пространства
+        ansible.builtin.command:
+          cmd: "parted /dev/{{ boot_disk_name }} --script resizepart {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }} 100%"
+
+
+  # - name: Изменить размер раздела на boot до 100% доступного пространства
+  #   ansible.builtin.command:
+  #     cmd: "growpart /dev/{{ boot_disk_name }} {{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+  #   ignore_errors: yes
+  #   when: platform | lower == 'yandex_cloud'
+
+  - name: Изменения размера файловой системы для yandex_cloud
+    ansible.builtin.command:
+      cmd: "resize2fs /dev/{{ boot_disk_name }}{{ (root_device_name | regex_replace('[^0-9]+', '')) | int }}"
+    ignore_errors: yes
+    when: platform | lower == 'yandex_cloud'
+
+
+...

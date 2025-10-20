@@ -1,0 +1,11 @@
+{% for mount in ansible_mounts %}
+  {% if mount.mount == "/boot" %}
+    {% for device, details in disk_devices.items() %}
+      {% for part, info in details.partitions.items() %}
+        {% if info.uuid == mount.uuid %}
+          {{ part }}
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}

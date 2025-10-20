@@ -1,0 +1,5 @@
+{% for partition, attributes in disk_devices[boot_disk_name].partitions.items() %}
+  {% if root_device_name in attributes.holders %}
+    {{ partition }}
+  {% endif %}
+{% endfor %}

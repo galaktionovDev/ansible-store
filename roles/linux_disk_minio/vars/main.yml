@@ -1,0 +1,36 @@
+---
+
+root_device_cmdline: "{{ ansible_cmdline.root.split('=')[1] }}"
+disk_devices: "{{ lookup('template', 'get_disk_devices.jinja2') }}"
+
+template_system_name: "{{ 'astra' if 'astra' in ansible_distribution|lower else 'ubuntu' if 'ubuntu' in ansible_distribution|lower else 'redos' if 'red' == ansible_distribution|lower else '' }}"
+# boot_partition_name: "{{ lookup('template', 'get_boot_partition_name_' + template_system_name + '.jinja2') | trim }}"
+boot_partition_name: "{{ lookup('template', 'get_boot_partition_name_common.jinja2') | trim }}"
+
+boot_disk_name: "{{ lookup('template', 'get_boot_disk_name_common.jinja2') | trim }}"
+
+app_vg_name: "vg_01"
+app_vg_pe_size: 4
+app_lvs: "{{ lookup('template', 'generate_app_lvs.jinja2') | trim }}"
+app_disk_names: "{{ lookup('template', 'get_app_disk_names_new.jinja2') }}"
+app_disk_list: "{{ app_disk_names | map('regex_replace', '(^.*$)', '/dev/\\1') | list }}"
+
+generated_extra_mounts: "{{ lookup('template', 'generate_extra_mounts.jinja2') }}"
+# generated_extra_disks: "{{ lookup('template', 'generate_extra_disks_' + template_system_name + '.jinja2') }}"
+generated_extra_disks: "{{ lookup('template', 'generate_extra_disks_common.jinja2') }}"
+lv_name: "{{ lookup('template', 'get_lv_name.jinja2') | trim }}"
+
+action_disks_to_create: "{{ lookup('template', 'get_extra_disks_to_create' + ('_openstack' if platform | lower == 'openstack' else '') + '.jinja2') }}"
+action_disks_to_resize: "{{ lookup('template', 'get_extra_disks_to_resize' + ('_openstack' if platform | lower == 'openstack' else '') + '.jinja2') }}"
+
+root_device_name: "{{ lookup('template', 'get_root_device_name.jinja2') | trim }}"
+#root_lv_name: "{{ root_device_name.split('-')[-1] }}"
+#root_lv_name: "{{ root_device_name.split('--')[-1].split('-')[1:] | join('-') }}"
+intermediate_string: "{{ root_device_name | replace('--', '__DOUBLE_DASH__') }}"
+parts: "{{ intermediate_string.split('-') }}"
+result_parts: "{{ parts | map('replace', '__DOUBLE_DASH__', '--') | list }}"
+root_lv_name: "{{ result_parts[-1] | regex_replace('--', '-') }}"
+root_vg_name: "{{ result_parts[0] | regex_replace('--', '-') }}"
+
+#root_vg_name: "{{ ('-').join(root_device_name.split('-')[:-1]) | regex_replace('--', '-') }}"
+root_partition_name: "{{ lookup('template', 'get_root_partition_name.jinja2') | trim }}"

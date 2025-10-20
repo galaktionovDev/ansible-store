@@ -1,0 +1,50 @@
+---
+
+# - name: Create LVM logical volume
+#   lvol:
+#     vg: "{{ app_vg_name }}"
+#     lv: "{{ lv.name }}"
+#     size: "{{ '+100%FREE' if ansible_loop.last else lv.size | string + 'g' }}"
+#   notify: update_facts
+
+- name: Check if logical volume exists
+  command: lvdisplay "{{ app_vg_name }}/{{ lv.name }}"
+  register: lv_display
+  ignore_errors: yes
+
+- name: Create LVM logical volume
+  command: >
+    lvcreate -y -n {{ lv.name }} {{ '-l 100%FREE' if ansible_loop.last else '-L ' + (lv.size | string) + 'G' }} {{ app_vg_name }}
+  register: lv_create
+  when: lv_display.rc != 0
+  notify: update_facts
+
+# - name: Create filesystem
+#   filesystem:
+#     fstype: "{{ lv.fstype }}"
+#     dev: "/dev/mapper/{{ app_vg_name }}-{{ lv.name }}"
+#   notify: update_facts
+
+- name: Check if filesystem exists
+  command: blkid /dev/mapper/{{ app_vg_name }}-{{ lv.name }}
+  register: result
+  failed_when: result.rc not in [0, 2]
+  changed_when: result.rc == 2
+  check_mode: no
+
+- name: Create filesystem
+  command: mkfs.{{ lv.fstype }} /dev/mapper/{{ app_vg_name }}-{{ lv.name }}
+  when: result is changed and create_fs
+  notify: update_facts
+
+- name: Mount filesystem
+  mount:
+    path: "{{ lv.mount }}"
+    src: "/dev/mapper/{{ app_vg_name }}-{{ lv.name }}"
+    fstype: "{{ lv.fstype }}"
+    dump: '0'
+    passno: '0'
+    state: mounted
+  when: create_fs
+  notify: update_facts
+

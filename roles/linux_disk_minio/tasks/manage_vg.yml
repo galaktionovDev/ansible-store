@@ -1,0 +1,59 @@
+---
+
+- name: Check if volume group exists
+  shell: vgdisplay "{{ app_vg_name }}"
+  register: vg_display
+  ignore_errors: true
+
+- name: Print ansible_cmdline
+  debug:
+    var: ansible_cmdline
+
+
+- name: Print disk_devices
+  debug:
+    var: disk_devices
+
+
+- name: Print ansible_mounts
+  debug:
+    var: ansible_mounts
+
+
+- name: Print boot_disk_name
+  debug:
+    var: boot_disk_name
+
+
+- name: Print boot_partition_name
+  debug:
+    var: boot_partition_name
+
+- name: Print app_disk_list
+  debug:
+    var: app_disk_list
+
+
+- name: Print ansible_device_links
+  debug:
+    var: ansible_device_links
+
+- name: Run vgscan to update the LVM cache
+  command: vgscan --cache
+
+- name: Create a volume group with specific PE size
+  command: >
+    vgcreate -s "{{ app_vg_pe_size }}m" "{{ app_vg_name }}" {{ app_disk_list | join(' ') }}
+  when: vg_display.rc != 0
+  notify: update_facts
+
+# - lvg:
+#     vg: "{{ app_vg_name }}"
+#     pesize: "{{ app_vg_pe_size }}m"
+#     pvs: "{{ app_disk_list }}"
+#   notify: update_facts
+
+
+# vgcreate -s "4m" "vg_01" /dev/sdb /dev/sdc /dev/sdd
+
+...

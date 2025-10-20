@@ -1,0 +1,26 @@
+{% set boot_found = False %}
+{% for mount in ansible_mounts %}
+  {% if mount.mount == "/boot" %}
+    {% for device, details in disk_devices.items() %}
+      {% for part, info in details.partitions.items() %}
+        {% if info.uuid == mount.uuid %}
+          {{ device }}
+          {% set boot_found = True %}
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% if not boot_found %}
+  {% for mount in ansible_mounts %}
+    {% if mount.mount == "/" %}
+      {% for device, details in disk_devices.items() %}
+        {% for part, info in details.partitions.items() %}
+          {% if info.uuid == mount.uuid %}
+            {{ device }}
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+{% endif %}

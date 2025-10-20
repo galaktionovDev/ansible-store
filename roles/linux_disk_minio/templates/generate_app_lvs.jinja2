@@ -1,0 +1,6 @@
+{% set lvs = extra_mounts %}
+{% for lv in lvs -%}
+    {{ lv.update(name='lv' + (lv.mount.split('/') | join('_')) | regex_replace('-', '')) }}
+{%- endfor -%}
+{{ lvs | tojson }}
+

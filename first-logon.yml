@@ -17,7 +17,7 @@
         name: configure-gpu
       when: gpus is defined and gpus | length > 0
     - include_role:
-        name: configure-ntp
+        name: configure-ntp    
     - include_role:
         name: linux_disk
       vars:

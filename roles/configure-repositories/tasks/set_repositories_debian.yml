@@ -34,12 +34,40 @@
 - name: "set_repositories | add required repo from set_repositories_repo_keys using copy"
   block:
 
-    - name: "Comment out all lines in sources.list"
+    - name: Build list of /etc/apt/sources.list.d repositories
+      set_fact:
+        allowed_apt_source_files: >-
+          {{
+            (set_repositories_required_repo.apt | default([]) | map(attribute='name') | list | unique)
+            | map('regex_replace', '^(.*)$', '/etc/apt/sources.list.d/\\1.list')
+            | list
+          }}
+      ignore_errors: true
+
+    - name: Find existing APT sources in sources.list.d
+      find:
+        paths: /etc/apt/sources.list.d
+        file_type: file
+        patterns:
+          - "*.list"
+          - "*.sources"
+      register: apt_source_files
+      ignore_errors: true
+
+    - name: Comment out all lines in sources.list
       replace:
         path: "/etc/apt/sources.list"
         regexp: '^(.*)$'
         replace: '#\1'
       ignore_errors: yes
+
+    - name: Disable all non-required APT sources
+      command: mv "{{ item.path }}" "{{ item.path }}.disabled"
+      args:
+        creates: "{{ item.path }}.disabled"
+      loop: "{{ apt_source_files.files | default([]) }}"
+      when: item.path not in (allowed_apt_source_files | default([]))
+      ignore_errors: true
 
     - name: "Add repository to {{ item.name }} copy"
       copy:
@@ -54,7 +82,7 @@
       loop: "{{ set_repositories_required_repo.apt }}"
       loop_control:
         label: "{{ item.name }}"
-    
+
     - name: Update apt cache
       command: apt-get update
       ignore_errors: true  # Ignoring errors if there's no internet

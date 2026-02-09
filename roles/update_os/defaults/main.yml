@@ -1,0 +1,15 @@
+---
+ansible_become: true
+
+# OS update settings
+update_os_reboot_timeout: 900
+update_os_max_upgrade_iterations: 2  # Maximum number of consecutive version upgrades
+update_os_wait_for_connection_timeout: 600
+update_os_wait_for_connection_delay: 0
+update_os_wait_for_connection_sleep: 5
+
+# Settings for Debian-based systems (Ubuntu, Debian, Astra Linux)
+update_os_debian_backup_sources: true
+update_os_debian_disable_third_party_repos: true
+
+...

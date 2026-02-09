@@ -1,0 +1,38 @@
+---
+- name: Check for available release upgrade
+  command: do-release-upgrade -c
+  register: upgrade_check
+  changed_when: false
+  failed_when: upgrade_check.rc not in [0, 1]
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Set upgrade_available fact
+  set_fact:
+    upgrade_available: "{{ 'New release' in upgrade_check.stdout }}"
+
+- name: Perform release upgrade
+  command: do-release-upgrade -f DistUpgradeViewNonInteractive
+  args:
+    creates: /var/run/reboot-required
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: upgrade_available | default(false)
+  register: upgrade_result
+  changed_when: "'New release' in upgrade_result.stdout or upgrade_result.rc == 0"
+
+- name: Set upgrade complete fact
+  set_fact:
+    upgrade_complete: "{{ not (upgrade_available | default(false)) }}"
+  when: upgrade_available is defined
+
+- name: Check if reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Reboot if required
+  reboot:
+    reboot_timeout: "{{ update_os_reboot_timeout }}"
+  when: reboot_required.stat.exists
+

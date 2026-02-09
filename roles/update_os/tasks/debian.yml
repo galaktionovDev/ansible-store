@@ -1,0 +1,116 @@
+---
+- name: Find all .list files in /etc/apt/sources.list.d/
+  find:
+    paths: /etc/apt/sources.list.d/
+    patterns: "*.list"
+  register: apt_sources_list_files
+  when: update_os_debian_disable_third_party_repos | default(true)
+
+- name: Save list of third-party repo files for restore
+  set_fact:
+    third_party_repos: "{{ apt_sources_list_files.files | map(attribute='path') | list }}"
+  when: >
+    update_os_debian_disable_third_party_repos | default(true) and
+    apt_sources_list_files.files is defined
+
+- name: Temporarily disable third-party repositories
+  command: mv "{{ item }}" "{{ item }}.disabled"
+  args:
+    creates: "{{ item }}.disabled"
+  loop: "{{ third_party_repos | default([]) }}"
+  when: update_os_debian_disable_third_party_repos | default(true)
+
+- name: Check if /etc/apt/sources.list exists
+  stat:
+    path: /etc/apt/sources.list
+  register: sources_list_stat
+
+- name: Backup original sources.list
+  copy:
+    src: /etc/apt/sources.list
+    dest: /etc/apt/sources.list.ansible_backup
+    remote_src: yes
+  when: >
+    update_os_debian_backup_sources | default(true) and
+    sources_list_stat.stat.exists
+
+- name: Configure official repositories for Ubuntu
+  template:
+    src: sources.list.j2
+    dest: /etc/apt/sources.list
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    release: "{{ ansible_distribution_release }}"
+  when: ansible_distribution.split(' ') | first | lower == 'ubuntu'
+
+- name: Configure official repositories for Astra Linux
+  template:
+    src: sources.list.astra.j2
+    dest: /etc/apt/sources.list
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    release: "{{ ansible_distribution_release }}"
+  when: ansible_distribution.split(' ') | first | lower == 'astra'
+
+- name: Configure official repositories for Debian
+  template:
+    src: sources.list.debian.j2
+    dest: /etc/apt/sources.list
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    release: "{{ ansible_distribution_release }}"
+  when: ansible_distribution.split(' ') | first | lower == 'debian'
+
+- name: Configure dpkg to keep old configs automatically
+  lineinfile:
+    path: /etc/apt/apt.conf.d/99local
+    line: 'DPkg::Options {"--force-confdef", "--force-confold"};'
+    create: yes
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Update all packages (non-interactive)
+  apt:
+    upgrade: dist
+    update_cache: yes
+    cache_valid_time: 3600
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Initialize upgrade iteration counter
+  set_fact:
+    upgrade_iteration: 0
+    upgrade_complete: false
+
+- name: Perform release upgrades (up to max iterations)
+  include_tasks: debian_upgrade_iteration.yml
+  loop: "{{ range(1, (update_os_max_upgrade_iterations | default(2)) + 1) | list }}"
+  loop_control:
+    label: "Upgrade iteration {{ item }}"
+  when: not (upgrade_complete | default(false))
+  vars:
+    upgrade_iteration: "{{ item }}"
+
+- name: Restore third-party repositories
+  block:
+    - name: Restore third-party repository files
+      command: mv "{{ item }}.disabled" "{{ item }}"
+      args:
+        removes: "{{ item }}.disabled"
+      loop: "{{ third_party_repos | default([]) }}"
+      failed_when: false
+
+    - name: Update apt cache after restoring repos
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+  when: >
+    update_os_debian_disable_third_party_repos | default(true) and
+    (third_party_repos | default([])) | length > 0

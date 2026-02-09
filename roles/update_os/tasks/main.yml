@@ -1,0 +1,38 @@
+---
+- name: Check server availability
+  wait_for_connection:
+    connect_timeout: 5
+    delay: "{{ update_os_wait_for_connection_delay }}"
+    sleep: "{{ update_os_wait_for_connection_sleep }}"
+    timeout: "{{ update_os_wait_for_connection_timeout }}"
+
+- name: Gather only minimal facts
+  setup:
+    gather_subset: min
+
+- name: Print OS distribution
+  debug:
+    msg: "Detected distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+- name: Update OS for Debian-based systems (Ubuntu, Debian, Astra Linux)
+  include_tasks: debian.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Update OS for RHEL-based systems (RedOS, CentOS, AlmaLinux)
+  include_tasks: rhel.yml
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+
+- name: Fail if OS is not supported
+  fail:
+    msg: "Unsupported operating system: {{ ansible_distribution }}. Supported: Ubuntu, Debian, Astra Linux, RedOS, CentOS, AlmaLinux"
+  when: >
+    ansible_distribution.split(' ') | first | lower not in ['ubuntu', 'astra', 'debian', 'red', 'almalinux', 'centos', 'oraclelinux']
+
+- name: Re-gather distribution facts after upgrade
+  setup:
+    filter: ansible_distribution_version
+
+- name: Set final OS version fact
+  set_stats:
+    data:
+      image: "{{ image | combine({'os': image.os | combine({'version': ansible_distribution_version})}) }}"

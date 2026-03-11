@@ -102,6 +102,22 @@
         group: root
         mode: '0644'
       when: ansible_distribution.split(' ') | first | lower in ['debian']
+    
+    - name: Pin Package and dependencies to version on Astra Linux # Remove after separate repos
+      copy:
+        dest: /etc/apt/preferences.d/99-astra-pins
+        content: |
+          Package: iptables libxtables12 libip4tc2 libip6tc2
+          Pin: version 1.8.9-2+b2
+          Pin-Priority: 1001
+
+          Package: parted
+          Pin: version 3.4-1
+          Pin-Priority: 1001
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      when: ansible_distribution.split(' ') | first | lower in ['astra']  
 
     - name: Update apt cache
       command: apt-get update

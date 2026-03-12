@@ -11,7 +11,13 @@ set_repositories_required_repo:
         description: "cld repository el7"
     el8:
       - name:  cld-repository-el8
-        description: "cld repository el8"
+        description: "cld repository el8"        
+    el9:
+      - name:  cld-repository-el9
+        description: "cld repository el9"
+    el10:
+      - name:  cld-repository-el10
+        description: "cld repository el10"
 
 
 allowed_interfaces:

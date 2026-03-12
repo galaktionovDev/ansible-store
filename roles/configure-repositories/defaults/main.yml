@@ -27,6 +27,14 @@ set_repositories_required_repo:
       - name:  cld-repository-el8
         repo_string: "{{ nexus_url }}/repository/products-yum/el8/"
         description: "cld repository el8"
+    el9:
+      - name:  cld-repository-el9
+        repo_string: "{{ nexus_url }}/repository/products-yum/el9/"
+        description: "cld repository el9"
+    el10:
+      - name:  cld-repository-el10
+        repo_string: "{{ nexus_url }}/repository/products-yum/el10/"
+        description: "cld repository el10"
 
 
 

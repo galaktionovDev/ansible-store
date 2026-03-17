@@ -5,7 +5,7 @@
         {%- set _ = old.value.append(disk.path | basename) -%}
     {%- endif -%}
 {%- endfor -%}
-{%- for disk_name, disk_params in disk_devices.items() if disk_name != boot_disk_name -%}
+{%- for disk_name, disk_params in disk_devices.items() if disk_name != (boot_disk_name | trim) -%}
     {%- set _ = disks.value.append(disk_name) -%}
 {%- endfor -%}
 {{ disks.value | tojson }}

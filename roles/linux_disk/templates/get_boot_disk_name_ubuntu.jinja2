@@ -1,10 +1,12 @@
-{% set root_label = ansible_cmdline.root.split('=')[1] %}
-{% for disk, attributes in disk_devices.items() %}
-  {% if 'partitions' in attributes %}
-    {% for partition, part_attr in attributes.partitions.items() %}
-      {% if root_label in part_attr.links.labels %}
-        {{ disk }}
-      {% endif %}
-    {% endfor %}
-  {% endif %}
-{% endfor %}
+{%- set root_label = ansible_cmdline.root.split('=')[1] -%}
+{%- set result = namespace(disk_name='') -%}
+{%- for disk, attributes in disk_devices.items() -%}
+  {%- if 'partitions' in attributes -%}
+    {%- for partition, part_attr in attributes.partitions.items() -%}
+      {%- if root_label in part_attr.links.labels -%}
+        {%- set result.disk_name = disk -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor -%}
+{{ result.disk_name }}

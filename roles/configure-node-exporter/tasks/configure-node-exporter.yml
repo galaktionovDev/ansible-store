@@ -28,15 +28,44 @@
     remote_src: true
   ignore_errors: yes
 
+- name: Get firewall status
+  ansible.builtin.service_facts:
+  no_log: true
+  register: service_firewall_facts
+
+- name: Get SELinux status
+  ansible.builtin.command: getenforce
+  register: selinux_status
+  changed_when: false
+  ignore_errors: true
+
 - name: Set SELinux context for node_exporter executable
+  community.general.sefcontext:
+    target: "{{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
+    setype: bin_t
+    state: present
+  register: selinux_fcontext
+  when: not selinux_status.failed
+  ignore_errors: yes
+
+- name: Apply SELinux context to node_exporter executable
   ansible.builtin.command:
-    cmd: chcon -t bin_t {{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter
-  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+    cmd: "restorecon -v {{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
+  when: selinux_fcontext.changed
+  changed_when: false
   ignore_errors: yes
 
 - block:
     - include_tasks: configure-firewalld.yml
-  when: ansible_distribution.split(' ') | first | lower in ['almalinux', 'centos', 'oraclelinux']
+  when:
+    - service_firewall_facts.ansible_facts.services['firewalld.service'] is defined
+    - service_firewall_facts.ansible_facts.services['firewalld.service']['status'] != 'not-found'
+
+- block:
+    - include_tasks: configure-ufw.yml
+  when:
+    - service_firewall_facts.ansible_facts.services['ufw.service'] is defined
+    - service_firewall_facts.ansible_facts.services['ufw.service']['status'] != 'not-found'
 
 - name: Configure node_exporter systemd service
   ansible.builtin.template:

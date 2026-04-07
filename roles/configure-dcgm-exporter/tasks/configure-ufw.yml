@@ -1,0 +1,14 @@
+---
+
+- name: Configure dcgm_exporter firewall service
+  ansible.builtin.template:
+    src: dcgm_exporter.ufw.j2
+    dest: /etc/ufw/applications.d/dcgm_exporter
+    mode: '0644'
+  ignore_errors: yes
+
+- name: Allow dcgm_exporter service
+  community.general.ufw:
+    rule: allow
+    name: dcgm_exporter
+  notify: reload ufw

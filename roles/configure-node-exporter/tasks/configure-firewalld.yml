@@ -5,19 +5,18 @@
     src: node_exporter.xml.j2
     dest: /etc/firewalld/services/node_exporter.xml
     mode: '0644'
+  notify: reload firewalld
   ignore_errors: yes
 
-- name: Reload firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --reload"
-  ignore_errors: yes
+- name: Reload firewalld if service file was created
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
 
 - name: Add node_exporter service to firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --add-service=node_exporter --permanent"
-  ignore_errors: yes
-
-- name: Reload firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --reload"
+  ansible.posix.firewalld:
+    service: node_exporter
+    permanent: yes
+    immediate: yes
+    state: enabled
   ignore_errors: yes

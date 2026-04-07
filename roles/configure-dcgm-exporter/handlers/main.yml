@@ -8,3 +8,12 @@
   ansible.builtin.systemd:
     name: dcgm_exporter
     state: started
+
+- name: reload firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
+
+- name: reload ufw
+  ansible.builtin.command:
+    cmd: ufw reload

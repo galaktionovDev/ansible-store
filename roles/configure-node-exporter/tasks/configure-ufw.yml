@@ -1,0 +1,14 @@
+---
+
+- name: Configure node_exporter firewall service
+  ansible.builtin.template:
+    src: node_exporter.ufw.j2
+    dest: /etc/ufw/applications.d/node_exporter
+    mode: '0644'
+  ignore_errors: yes
+
+- name: Allow node_exporter service
+  community.general.ufw:
+    rule: allow
+    name: node_exporter
+  notify: reload ufw

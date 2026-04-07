@@ -5,19 +5,18 @@
     src: dcgm_exporter.xml.j2
     dest: /etc/firewalld/services/dcgm_exporter.xml
     mode: '0644'
+  notify: reload firewalld
   ignore_errors: yes
 
-- name: Reload firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --reload"
-  ignore_errors: yes
+- name: Reload firewalld if service file was created
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
 
 - name: Add dcgm_exporter service to firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --add-service=dcgm_exporter --permanent"
-  ignore_errors: yes
-
-- name: Reload firewalld
-  ansible.builtin.command:
-    cmd: "firewall-cmd --reload"
+  ansible.posix.firewalld:
+    service: dcgm_exporter
+    permanent: yes
+    immediate: yes
+    state: enabled
   ignore_errors: yes

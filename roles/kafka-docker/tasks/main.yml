@@ -3,26 +3,51 @@
 - name: Start a postgres container with {{ kafka_port }} port exposed
   raw: >
     docker run -d --restart=always --name {{ kafka_cloud_container_name }} \
-    -e KAFKA_CFG_ZOOKEEPER_CONNECT="" \
-    -e KAFKA_CFG_LISTENERS="CLIENT://:{{ kafka_port }},CONTROLLER://:{{ kafka_controller_port }}" \
-    -e KAFKA_CFG_ADVERTISED_LISTENERS="CLIENT://{{ machine['default_v4_address'] }}:{{ kafka_port }}" \
-    -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP="CLIENT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT" \
-    -e KAFKA_CLIENT_USERS="{{ kafka_user }}" \
-    -e KAFKA_CLIENT_PASSWORDS="{{ kafka_password }}" \
-    -e KAFKA_CFG_SASL_ENABLED_MECHANISMS="PLAIN" \
-    -e KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL="PLAIN" \
+    -e CLUSTER_ID="{{ cluster_id }}" \
+    -e KAFKA_NODE_ID=1 \
+    -e KAFKA_PROCESS_ROLES="broker,controller" \
+    -e KAFKA_CONTROLLER_QUORUM_VOTERS="1@127.0.0.1:{{ kafka_controller_port }}" \
+    -e KAFKA_LISTENERS="CLIENT://:{{ kafka_port }},CONTROLLER://:{{ kafka_controller_port }}" \
+    -e KAFKA_ADVERTISED_LISTENERS="CLIENT://{{ machine['default_v4_address'] }}:{{ kafka_port }}" \
+    -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="CLIENT:PLAINTEXT,CONTROLLER:PLAINTEXT" \
+    -e KAFKA_CONTROLLER_LISTENER_NAMES="CONTROLLER" \
     -e KAFKA_INTER_BROKER_LISTENER_NAME="CLIENT" \
-    -e KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE="{{ kafka_auto_create_topics }}" \
-    -e ALLOW_PLAINTEXT_LISTENER="yes" \
-    -e BITNAMI_DEBUG=true \
+    -e KAFKA_AUTO_CREATE_TOPICS_ENABLE="{{ kafka_auto_create_topics }}" \
     -p {{ kafka_port }}:{{ kafka_port }} \
-    -v {{ app_data_volume_name }}:{{ container_data_path }} 
-    -v {{ app_config_volume_name }}:{{ container_config_path }}
-    -v {{ app_user_config_volume_name }}:{{ container_user_config_path }}
+    -v {{ app_data_volume_name }}:{{ container_data_path }} \
+    -v {{ app_config_volume_name }}:{{ container_config_path }} \
     {{ nexus_docker_url }}/bitnami/kafka:{{ kafka_version }}
 
-- set_stats:
-    data:
-      connection_url: "{{ 'http://' + machine['default_v4_address'] + ':' + kafka_port }}"
-      kafka_version: "{{ kafka_version }}"
+- name: Wait for Kafka container to reach 'running' state
+  raw: docker inspect -f '{{ '{{.State.Status}}' }}' {{ kafka_cloud_container_name }}
+  register: container_status
+  until:
+    - container_status.stdout | trim == 'running'
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Wait for Kafka TCP port {{ kafka_port }}
+  wait_for:
+    host: "127.0.0.1"
+    port: "{{ kafka_port }}"
+    state: started
+    delay: 3
+    timeout: 60
+
+- name: Verify Kafka is ready to serve requests
+  raw: >
+    docker exec {{ kafka_cloud_container_name }}
+    /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:{{ kafka_port }}
+  register: kafka_check
+  until: kafka_check.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Publish Kafka connection metadata
+  set_stats:
+      data:
+        connection_url: "{{ 'http://' + machine['default_v4_address'] + ':' + kafka_port }}"
+        kafka_version: "{{ kafka_version }}"
 

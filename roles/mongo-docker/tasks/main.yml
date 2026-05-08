@@ -1,7 +1,71 @@
 ---
+- name: Gather CPU flags from /proc/cpuinfo
+  raw: grep -c 'avx' /proc/cpuinfo
+  register: cpu_avx_check
+  changed_when: false
+  failed_when: false
 
+- name: Fail early if AVX is not supported by the CPU
+  fail:
+    msg: >
+      MongoDB {{ mongo_version }} requires AVX CPU support, but the flag was not
+      found in /proc/cpuinfo on host {{ inventory_hostname }}.
+      Use a host with AVX-capable CPU.
+  when: cpu_avx_check.rc != 0 or cpu_avx_check.stdout | trim == '0'
+  
 - name: Start a mongo container with {{ mongo_port }} port exposed
-  raw: "docker run -d --restart=always --name {{ mongo_cloud_container_name }}  -e MONGO_INITDB_ROOT_USERNAME={{ mongo_root_username }} -e MONGO_INITDB_ROOT_PASSWORD={{ mongo_root_password }} -v {{ app_data_volume_name }}:{{ container_data_path }} -v {{ app_config_volume_name }}:{{ container_config_path }} -p {{ mongo_port }}:{{ mongo_port }} {{ nexus_docker_url }}/mongo:{{ mongo_version }}"
+  raw: >
+    docker run -d --restart=always
+    --name {{ mongo_cloud_container_name }}
+    --health-cmd  'mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" || exit 1'
+    --health-interval 10s
+    --health-timeout  5s
+    --health-retries  5
+    --health-start-period 30s
+    -e MONGO_INITDB_ROOT_USERNAME={{ mongo_root_username }}
+    -e MONGO_INITDB_ROOT_PASSWORD={{ mongo_root_password }}
+    -v {{ app_data_volume_name }}:{{ container_data_path }}
+    -v {{ app_config_volume_name }}:{{ container_config_path }}
+    -p {{ mongo_port }}:{{ mongo_port }}
+    {{ nexus_docker_url }}/mongo:{{ mongo_version }}
+
+- name: Wait for MongoDB container to reach 'running' state
+  raw: docker inspect -f '{{ '{{.State.Status}}' }}' {{ mongo_cloud_container_name }}
+  register: container_status
+  until: container_status.stdout | trim == 'running'
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Wait for MongoDB TCP port {{ mongo_port }}
+  wait_for:
+    host: "127.0.0.1"
+    port: "{{ mongo_port }}"
+    state: started
+    delay: 5
+    timeout: 90    
+
+- name: Wait for Docker HEALTHCHECK to report 'healthy'
+  raw: docker inspect -f '{{ '{{.State.Health.Status}}' }}' {{ mongo_cloud_container_name }}
+  register: health_status
+  until: health_status.stdout | trim == 'healthy'
+  retries: 18          # 18 × 10 s = 3 min максимум
+  delay: 10
+  changed_when: false
+  failed_when: health_status.stdout | trim == 'unhealthy'
+
+- name: Verify MongoDB is ready to serve requests
+  raw: >
+    docker exec {{ mongo_cloud_container_name }}
+    mongosh --quiet
+    -u "{{ mongo_root_username }}" -p "{{ mongo_root_password }}"
+    --authenticationDatabase admin
+    --eval "db.adminCommand({ ping: 1 }).ok"
+  register: mongo_check
+  until: mongo_check.stdout | trim == '1'
+  retries: 12
+  delay: 5
+  changed_when: false  
 
 - set_stats:
     data:

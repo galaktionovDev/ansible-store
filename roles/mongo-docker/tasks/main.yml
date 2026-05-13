@@ -32,7 +32,7 @@
 - name: Wait for MongoDB container to reach 'running' state
   raw: docker inspect -f '{{ '{{.State.Status}}' }}' {{ mongo_cloud_container_name }}
   register: container_status
-  until: container_status.stdout | trim == 'running'
+  until: container_status.stdout_lines | last | trim == 'running'
   retries: 12
   delay: 5
   changed_when: false
@@ -48,11 +48,11 @@
 - name: Wait for Docker HEALTHCHECK to report 'healthy'
   raw: docker inspect -f '{{ '{{.State.Health.Status}}' }}' {{ mongo_cloud_container_name }}
   register: health_status
-  until: health_status.stdout | trim == 'healthy'
-  retries: 18          # 18 × 10 s = 3 min максимум
+  until: health_status.stdout_lines | last | trim == 'healthy'
+  retries: 18
   delay: 10
   changed_when: false
-  failed_when: health_status.stdout | trim == 'unhealthy'
+  failed_when: health_status.stdout_lines | last | trim == 'unhealthy'
 
 - name: Verify MongoDB is ready to serve requests
   raw: >
@@ -62,10 +62,10 @@
     --authenticationDatabase admin
     --eval "db.adminCommand({ ping: 1 }).ok"
   register: mongo_check
-  until: mongo_check.stdout | trim == '1'
+  until: mongo_check.stdout_lines | last | trim == '1'
   retries: 12
   delay: 5
-  changed_when: false  
+  changed_when: false 
 
 - set_stats:
     data:

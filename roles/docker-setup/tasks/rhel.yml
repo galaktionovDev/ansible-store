@@ -34,11 +34,10 @@
       - docker-ce
       - docker-ce-cli
       - containerd.io
-      - docker-scan-plugin
       - docker-compose-plugin
       - docker-buildx-plugin
     state: present
-    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
     disablerepo: "*"
   when: ansible_distribution.split(' ') | first | lower not in ['centos']
 
@@ -48,10 +47,9 @@
       - docker-ce
       - docker-ce-cli
       - containerd.io
-      - docker-scan-plugin
       - docker-compose-plugin
       - docker-buildx-plugin
-    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
     disablerepo: "*"
     state: present
   when: ansible_distribution.split(' ') | first | lower in ['centos']

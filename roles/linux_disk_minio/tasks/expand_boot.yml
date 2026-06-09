@@ -64,9 +64,22 @@
   block:
     - name: Update apt cache
       command: apt-get update
+      ignore_errors: true
+
+    - name: "Install components using apt-get command | set cloud utils package for Ubuntu 24"
+      set_fact:
+        linux_disk_cloud_utils_pkg: >-
+          {{
+            (ansible_distribution | lower == 'ubuntu' and (ansible_distribution_major_version | int) >= 24)
+              | ternary('cloud-guest-utils', 'cloud-utils')
+          }}
+      ignore_errors: true
 
     - name: "Install components using apt-get command"
-      command: apt-get install -y --allow-unauthenticated cloud-utils gdisk parted
+      command: >-
+        apt-get install -y --allow-unauthenticated
+        {{ linux_disk_cloud_utils_pkg }} gdisk parted
+      ignore_errors: true
   when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
   ignore_errors: true
 # Установка пакетов APT

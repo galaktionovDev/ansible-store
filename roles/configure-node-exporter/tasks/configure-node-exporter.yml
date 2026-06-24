@@ -39,6 +39,17 @@
   changed_when: false
   ignore_errors: true
 
+- name: Install SELinux management utilities (RED OS 8 only)
+  ansible.builtin.yum:
+    name: policycoreutils-python-utils
+    state: present
+  when:
+    - selinux_status.rc == 0
+    - selinux_status.stdout != 'Disabled'
+    - ansible_distribution.split(' ') | first | lower == 'red'
+    - ansible_distribution_major_version == '8'
+  ignore_errors: true
+
 - name: Set SELinux context for node_exporter executable
   community.general.sefcontext:
     target: "{{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"

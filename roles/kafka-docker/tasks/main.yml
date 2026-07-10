@@ -1,6 +1,10 @@
 ---
 
-- name: Start a postgres container with {{ kafka_port }} port exposed
+- name: Apply Astra Linux executable-memory
+  include_tasks: astra-execstack.yml
+  when: "'astra' in ansible_distribution | lower"
+
+- name: Start a Kafka container with {{ kafka_port }} port exposed
   raw: >
     docker run -d --restart=always --name {{ kafka_cloud_container_name }} \
     -e CLUSTER_ID="{{ cluster_id }}" \

@@ -1,0 +1,23 @@
+---
+
+- name: Read active kernel command line
+  ansible.builtin.command: cat /proc/cmdline
+  register: kernel_cmdline
+  changed_when: false
+
+- name: Ensure parsec.execstack=1 is present in GRUB defaults
+  ansible.builtin.replace:
+    path: /etc/default/grub
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT="(?![^"]*parsec\.execstack=)[^"]*)"'
+    replace: '\1 parsec.execstack=1"'
+  when: "'parsec.execstack=1' not in kernel_cmdline.stdout"
+
+- name: Regenerate GRUB configuration
+  ansible.builtin.command: update-grub
+  when: "'parsec.execstack=1' not in kernel_cmdline.stdout"
+
+- name: Reboot to apply executable-memory permission for JVM
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+    post_reboot_delay: 15
+  when: "'parsec.execstack=1' not in kernel_cmdline.stdout"

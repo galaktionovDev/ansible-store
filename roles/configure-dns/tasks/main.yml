@@ -5,6 +5,7 @@
     path: /etc/resolv.conf
     line: "nameserver {{ item }}"
     state: present
+    create: yes
   with_items: "{{ dns_servers }}"
 
 

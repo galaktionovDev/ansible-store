@@ -1,18 +1,41 @@
 ---
 
-- name: "set_repositories | add trust to repos from set_repositories_required_repo variable"
+- name: "set_repositories | check if apt-key is available"
+  command: which apt-key
+  register: apt_key_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: "set_repositories | add trust to repos with apt-key"
   apt_key:
     url: "{{ item.key_url | default(omit) }}"
     state: present
+    keyring: /etc/apt/trusted.gpg.d/{{ item.name }}.gpg
     data: "{{ item.data | default(omit) }}"
     validate_certs: false
   when:
     - item.name is defined
     - item.key_url is defined or item.data is defined
+    - apt_key_check.rc == 0
   loop: "{{ set_repositories_repo_keys.apt }}"
   loop_control:
     label: "{{ item.name }}"
   ignore_errors: true  # Ignoring errors if there's no internet
+
+
+- name: "set_repositories | add trust to repos without apt-key"
+  shell: |
+    wget -qO- "{{ item.key_url }}" | gpg --dearmor > "/etc/apt/trusted.gpg.d/{{ item.name }}.gpg"
+  when:
+    - item.name is defined
+    - item.key_url is defined
+    - apt_key_check.rc != 0
+  loop: "{{ set_repositories_repo_keys.apt }}"
+  loop_control:
+    label: "{{ item.name }}"
+  ignore_errors: true
+
 
 # - name: "set_repositories | add required repo from set_repositories_repo_keys using module"
 #   block:
@@ -31,14 +54,62 @@
 #       # ignore_errors: true  # Ignoring errors if there's no internet
 #   # when: ansible_distribution.split(' ') | first | lower not in ['astra']
 
+
+- name: "set_repositories | setup repository priorities"
+  block:
+#    - name: "Extract domain from nexus_url"
+#      set_fact:
+#        nexus_domain: "{{ nexus_url | regex_replace('^https?://([^/]+).*$', '\\1') }}"
+
+    - name: "Extract default release name"
+      set_fact:
+        default_release: "{{ set_repositories_required_repo.apt.default | map(attribute='repo_string') | first | regex_replace('^.*\\s+([a-z]+)\\s+main$', '\\1') }}"
+
+    - name: "Create repo-priority file with lower priority for default repo"
+      copy:
+        dest: /etc/apt/preferences.d/repo-priority
+        content: |
+          Package: *
+          Pin: origin {{ nexus_hostname }}
+          Pin: release n={{ default_release }}
+          Pin-Priority: 200
+        owner: root
+        group: root
+        mode: '0644'
+
+
 - name: "set_repositories | add required repo from set_repositories_repo_keys using copy"
   block:
+
+    - name: Determine the appropriate APT repo list
+      set_fact:
+        selected_apt_repositories: >-
+          {{
+            set_repositories_required_repo.apt['default'] +
+            (set_repositories_required_repo.apt.get('debian-' + ansible_distribution_major_version, [])
+            if ansible_distribution == 'Debian' and ansible_distribution_major_version in ['12', '13']
+            else [])
+          }}
+###
+# Feature exclusive repos APT
+###
+#       selected_apt_repositories: >-
+#         {{
+#           set_repositories_required_repo.apt['default'] +
+#           (set_repositories_required_repo.apt.get('debian-' + ansible_distribution_major_version, [])
+#           if ansible_distribution == 'Debian' and ansible_distribution_major_version in ['11', '12']
+#           else []) +
+#           (set_repositories_required_repo.apt.get('ubuntu-' + ansible_distribution_major_version, [])
+#           if ansible_distribution == 'Ubuntu' and ansible_distribution_major_version in ['20', '22', '24']
+#           else [])
+#         }}
+###
 
     - name: Build list of /etc/apt/sources.list.d repositories
       set_fact:
         allowed_apt_source_files: >-
           {{
-            (set_repositories_required_repo.apt | default([]) | map(attribute='name') | list | unique)
+            (selected_apt_repositories | default([]) | map(attribute='name') | list | unique)
             | map('regex_replace', '^(.*)$', '/etc/apt/sources.list.d/\\1.list')
             | list
           }}
@@ -79,13 +150,13 @@
       when:
         - item.name is defined
         - item.repo_string is defined
-      loop: "{{ set_repositories_required_repo.apt }}"
+      loop: "{{ selected_apt_repositories }}"
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Pin Package and dependencies to version  on Debian # Remove after separate repos
+    - name: Pin Package and dependencies to version on Debian11 # Remove after separate repos
       copy:
-        dest: /etc/apt/preferences.d/debian-pin
+        dest: /etc/apt/preferences.d/debian11-pin
         content: |
           Package: iptables libxtables12 libip4tc2 libip6tc2
           Pin: version 1.8.7-1
@@ -101,7 +172,7 @@
         owner: root
         group: root
         mode: '0644'
-      when: ansible_distribution.split(' ') | first | lower in ['debian']
+      when: ansible_distribution == 'Debian' and ansible_distribution_major_version == '11'
     
     - name: Pin Package and dependencies to version on Astra Linux # Remove after separate repos
       copy:

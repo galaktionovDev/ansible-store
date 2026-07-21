@@ -16,8 +16,33 @@ set_repositories_repo_keys:
 
 set_repositories_required_repo:
   apt:
-    - name:  cld-repository
-      repo_string: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+    default:
+      - name: cld-repository
+        repo_string: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+    debian-12:
+      - name: cld-repository-debian-12
+        repo_string: "deb {{ nexus_url }}/repository/products-apt-debian-12/ bookworm main"
+    debian-13:
+      - name: cld-repository-debian-13
+        repo_string: "deb {{ nexus_url }}/repository/products-apt-debian-13/ trixie main"
+
+###
+# Feature exclusive repos APT
+###
+#   debian-11:
+#     - name: cld-repository-debian-11
+#       repo_string: "deb {{ nexus_url }}/repository/products-apt-debian-11/ bullseye main"
+#   ubuntu20:
+#     - name: cld-repository-ubuntu20
+#       repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-20/ focal main"
+#   ubuntu22:
+#     - name: cld-repository-ubuntu-22
+#       repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-22/ jammy main"
+#   astra-1-7:
+#     - name: cld-repository-alse-1-7
+#       repo_string: "deb {{ nexus_url }}/repository/products-apt-alse-1-7/ {{ ansible_distribution_version }} main"
+###
+
   yum:
     el7:
       - name:  cld-repository-el7

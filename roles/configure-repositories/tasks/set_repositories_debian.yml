@@ -1,11 +1,13 @@
 ---
 
-- name: "set_repositories | check if apt-key is available"
-  command: which apt-key
+- name: "set_repositories | check if apt-key and gpg are available"
+  shell: |
+    which apt-key && which gpg
   register: apt_key_check
   changed_when: false
   failed_when: false
   check_mode: false
+  ignore_errors: true
 
 - name: "set_repositories | add trust to repos with apt-key"
   apt_key:
@@ -21,12 +23,13 @@
   loop: "{{ set_repositories_repo_keys.apt }}"
   loop_control:
     label: "{{ item.name }}"
-  ignore_errors: true  # Ignoring errors if there's no internet
-
+  ignore_errors: true
 
 - name: "set_repositories | add trust to repos without apt-key"
-  shell: |
-    wget -qO- "{{ item.key_url }}" | gpg --dearmor > "/etc/apt/trusted.gpg.d/{{ item.name }}.gpg"
+  get_url:
+    url: "{{ item.key_url }}"
+    dest: "/etc/apt/trusted.gpg.d/{{ item.name }}.asc"
+    validate_certs: false
   when:
     - item.name is defined
     - item.key_url is defined
@@ -57,10 +60,6 @@
 
 - name: "set_repositories | setup repository priorities"
   block:
-#    - name: "Extract domain from nexus_url"
-#      set_fact:
-#        nexus_domain: "{{ nexus_url | regex_replace('^https?://([^/]+).*$', '\\1') }}"
-
     - name: "Extract default release name"
       set_fact:
         default_release: "{{ set_repositories_required_repo.apt.default | map(attribute='repo_string') | first | regex_replace('^.*\\s+([a-z]+)\\s+main$', '\\1') }}"

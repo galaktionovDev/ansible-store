@@ -74,7 +74,7 @@
     state: stopped
     enabled: no
   when: ntp_status.rc == 0
-  
+  ignore_errors: true
 
 - name: Stop and disable chrony
   systemd:

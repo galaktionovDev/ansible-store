@@ -1,5 +1,11 @@
 ---
 
+- name: lvm2 package present
+  package:
+    name: lvm2
+    state: present
+  ignore_errors: true
+
 - name: Check if volume group exists
   shell: vgdisplay "{{ app_vg_name }}"
   register: vg_display

@@ -6,6 +6,11 @@
 #     lv: "{{ lv.name }}"
 #     size: "{{ '+100%FREE' if ansible_loop.last else lv.size | string + 'g' }}"
 #   notify: update_facts
+- name: xfsprogs package present
+  package:
+    name: xfsprogs
+    state: present
+  ignore_errors: true
 
 - name: Check if logical volume exists
   command: lvdisplay "{{ app_vg_name }}/{{ lv.name }}"

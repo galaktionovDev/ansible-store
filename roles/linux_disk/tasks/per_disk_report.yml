@@ -1,0 +1,10 @@
+---
+
+- name: Refresh facts before report
+  setup:
+    gather_subset: hardware
+
+- name: Set stats
+  set_stats:
+    data:
+      disk_devices_data: "{{ lookup('template', 'report_per_disk.jinja2') }}"

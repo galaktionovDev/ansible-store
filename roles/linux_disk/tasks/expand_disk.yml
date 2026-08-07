@@ -1,0 +1,21 @@
+---
+
+- name: Match disks to devices (find target by uuid)
+  include_tasks: per_disk_match.yml
+
+- name: Rescan resized device (SCSI/virtio-scsi need it; virtio-blk auto-detects)
+  ansible.builtin.shell: "test -e /sys/block/{{ item.device }}/device/rescan && echo 1 > /sys/block/{{ item.device }}/device/rescan || true"
+  loop: "{{ disks_matched | selectattr('uuid', 'defined') | selectattr('uuid', 'equalto', target_disk_uuid) | list }}"
+  loop_control:
+    label: "{{ item.device }}"
+  become: true
+  changed_when: false
+
+- name: Gather facts after rescan
+  ansible.builtin.setup:
+    gather_subset: hardware
+
+- name: Re-match with new size
+  include_tasks: per_disk_match.yml
+
+- include_tasks: per_disk_report.yml

@@ -1,0 +1,45 @@
+{%- set disks = [] -%}
+{%- set vg_map = {} -%}
+{%- set uuid_map = {} -%}
+{%- for d in disks_matched | default([]) -%}
+    {%- set entry = {} -%}
+    {%- set _ = entry.update(d) -%}
+    {%- for k in ['match', 'device'] if k in entry -%}{%- set _ = entry.pop(k) -%}{%- endfor -%}
+    {%- if d.name is defined -%}
+        {%- set vg = 'vg_' ~ (d.name | replace('-', '_')) -%}
+        {%- set _ = vg_map.update({vg: d.name}) -%}
+        {%- if d.uuid is defined and d.uuid -%}
+            {%- set _ = uuid_map.update({d.name: d.uuid}) -%}
+        {%- endif -%}
+        {%- if ansible_lvm is defined and ansible_lvm.vgs is defined and vg in ansible_lvm.vgs -%}
+            {%- set _ = entry.update({'vg': vg}) -%}
+        {%- endif -%}
+    {%- endif -%}
+    {%- set _ = disks.append(entry) -%}
+{%- endfor -%}
+{%- set mounts = [] -%}
+{%- for mount in ansible_mounts if mount.device.startswith('/dev/mapper/') -%}
+    {%- set device = mount.device.split('/') | last -%}
+    {%- if '-' in device -%}
+        {%- set vg, lv = device.rsplit('-', 1) -%}
+        {%- if vg in vg_map -%}
+            {%- for lv_name, lv_params in ansible_lvm.lvs.items() if lv_name == lv and lv_params.vg == vg -%}
+                {%- set entry = {'mount': mount.mount, 'fstype': mount.fstype, 'options': mount.options,
+                                 'device': mount.device, 'size': lv_params.size_g | float | round(2, 'common'),
+                                 'disk': vg_map[vg]} -%}
+                {%- if vg_map[vg] in uuid_map -%}
+                    {%- set _ = entry.update({'disk_uuid': uuid_map[vg_map[vg]]}) -%}
+                {%- endif -%}
+                {%- set _ = mounts.append(entry) -%}
+            {%- endfor -%}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set report = {'layout': 'per_disk', 'extra_disks': disks, 'extra_mounts': mounts} -%}
+{%- if boot_disk is defined and boot_disk -%}
+    {%- set bd = {} -%}
+    {%- set _ = bd.update(boot_disk) -%}
+    {%- set _ = bd.update({'path': '/dev/' ~ boot_disk_name}) -%}
+    {%- set _ = report.update({'boot_disk': bd}) -%}
+{%- endif -%}
+{{ report | tojson }}

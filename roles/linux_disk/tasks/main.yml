@@ -9,8 +9,18 @@
   setup:
 
 
-- name: "Run interface {{ interface }}"
-  include_tasks: "{{ interface }}.yml"
+- name: Print disk layout
+  debug:
+    var: disk_layout
+
+
+- name: Resolve interface tasks file
+  set_fact:
+    interface_file: "{{ per_disk_tasks[interface] if (disk_layout == 'per_disk' and interface in per_disk_tasks) else interface }}"
+
+
+- name: "Run interface {{ interface }} ({{ disk_layout }})"
+  include_tasks: "{{ interface_file }}.yml"
 
 
 - name: Print ansible_cmdline

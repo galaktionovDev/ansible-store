@@ -29,6 +29,14 @@
   debug:
     var: disks_to_resize
 
+- name: Verify disk UUIDs are exposed to guest OS
+  ansible.builtin.assert:
+    that:
+      - action_disks_to_create | length > 0
+    fail_msg: "Отсутствуют серийные номера дисков в /dev/disk/by-id/. Проверьте настройки виртуальной машины."
+    success_msg: "Идентификаторы дисков успешно обнаружены."
+  when: disks_to_create is defined and disks_to_create | length > 0    
+
 - block:
   - name: Create app volume group
     include_tasks: manage_vg.yml
@@ -52,7 +60,7 @@
   - block:
     - name: Force reread disks
       command: "pvresize -v {{ item }}"
-      loop: "{{ [action_disks_to_resize|flatten(levels=1)|first] }}"
+      loop: "{{ [action_disks_to_resize | flatten(levels=1) | first] if action_disks_to_resize | length > 0 else [] }}"
 
     - name: Resize physical volume (raw)
       command: "pvresize -v {{ item }}"

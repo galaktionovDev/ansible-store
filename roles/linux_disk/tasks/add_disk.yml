@@ -1,0 +1,14 @@
+---
+- name: Rescan buses to discover hot-plugged disk
+  ansible.builtin.shell: |
+    for h in /sys/class/scsi_host/host*/scan; do [ -e "$h" ] && echo "- - -" > "$h"; done
+    [ -e /sys/bus/pci/rescan ] && echo 1 > /sys/bus/pci/rescan
+    command -v udevadm >/dev/null && udevadm settle || true
+  changed_when: false
+
+- name: Gather facts after rescan
+  ansible.builtin.setup:
+    gather_subset: hardware
+
+- include_tasks: per_disk_match.yml
+- include_tasks: per_disk_report.yml

@@ -1,0 +1,111 @@
+---
+- name: Check contract
+  fail:
+    msg: "delete_disk: требуется deleted_disk_uuid или deleted_disk_path"
+  when: >-
+    (deleted_disk_uuid is not defined or not deleted_disk_uuid) and
+    (deleted_disk_path is not defined or not deleted_disk_path)
+
+- name: Resolve device of deleted disk
+  set_fact:
+    dd_device: >-
+      {%- set id_prefixes = ['scsi0qemuqemuharddisk', 'scsi3', 'virtio', 'scsi', 'ata', 'wwn0x', 'wwn', 'nvmeeui'] -%}
+      {%- set found = namespace(dev='') -%}
+      {%- set nuuid = (deleted_disk_uuid | default('')) | replace('-', '') | replace('_', '') | lower -%}
+      {%- if nuuid -%}
+        {%- for dev_name, dev_params in disk_devices | dictsort if dev_name != boot_disk_name and not found.dev -%}
+          {%- set dev_ids = (dev_params.links.ids | default([])) + ([dev_params.serial] if (dev_params.serial is defined and dev_params.serial) else []) -%}
+          {%- for id in dev_ids if not found.dev -%}
+            {%- set nid_full = id | replace('-', '') | replace('_', '') | lower -%}
+            {%- set nid = namespace(v=nid_full) -%}
+            {%- set stripped = namespace(done=false) -%}
+            {%- for p in id_prefixes if not stripped.done -%}
+              {%- if nid.v.startswith(p) -%}
+                {%- set nid.v = nid.v[p | length:] -%}
+                {%- set stripped.done = true -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- if (nuuid in nid_full) or (nid.v | length >= 8 and nid.v in nuuid) -%}
+              {%- set found.dev = dev_name -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not found.dev and deleted_disk_path is defined and deleted_disk_path -%}
+        {%- set p = deleted_disk_path.split('/') | last -%}
+        {%- if p in disk_devices -%}{%- set found.dev = p -%}{%- endif -%}
+      {%- endif -%}
+      {{ found.dev }}
+
+- name: Print resolved device of deleted disk
+  debug:
+    var: dd_device
+
+- name: Note when deleted disk is already gone from OS
+  debug:
+    msg: "Устройство удалённого диска не найдено в ОС — вероятно уже отвязано, пропускаю очистку."
+  when: dd_device | length == 0
+
+- name: Cleanup LVM on deleted device
+  when: dd_device | length > 0 and (cleanup_vg | default(true))
+  block:
+    - name: Find volume groups backed by the deleted device
+      command: >-
+        pvs --noheadings -o vg_name /dev/{{ dd_device }}
+      register: dd_vgs
+      failed_when: false
+      changed_when: false
+
+    - name: Set target VGs to remove
+      set_fact:
+        dd_target_vgs: >-
+          {{ dd_vgs.stdout_lines | default([]) | map('trim')
+             | select('match', '^vg_') | reject('equalto', app_vg_name) | list }}
+
+    - name: Print target VGs
+      debug:
+        var: dd_target_vgs
+
+    - name: Unmount and drop fstab entries for LVs on target VGs
+      mount:
+        path: "{{ item.mount }}"
+        state: absent
+      loop: >-
+        {{ ansible_mounts
+           | selectattr('device', 'match', '^/dev/mapper/(' ~ (dd_target_vgs | join('|')) ~ ')-')
+           | list }}
+      loop_control:
+        label: "{{ item.mount }}"
+      when: dd_target_vgs | length > 0
+
+    - name: Remove volume groups on deleted device
+      command: vgremove -f "{{ item }}"
+      loop: "{{ dd_target_vgs }}"
+      when: dd_target_vgs | length > 0
+      notify: update_facts
+
+    - name: Wipe PV signature on deleted device
+      shell: pvremove -ff -y /dev/{{ dd_device }} && wipefs -a /dev/{{ dd_device }}
+      when: delete_disk_wipe | default(true)
+      ignore_errors: true
+      notify: update_facts
+
+- meta: flush_handlers
+
+- name: Detach deleted block device from kernel
+  shell: |
+    dev="{{ dd_device }}"
+    if [ -n "$dev" ] && [ -e "/sys/block/$dev/device/delete" ]; then
+      echo 1 > "/sys/block/$dev/device/delete"
+    fi
+    for h in /sys/class/scsi_host/host*/scan; do [ -e "$h" ] && echo "- - -" > "$h"; done
+    [ -e /sys/bus/pci/rescan ] && echo 1 > /sys/bus/pci/rescan
+    command -v udevadm >/dev/null && udevadm settle || true
+  changed_when: false
+
+- name: Gather facts after detach
+  ansible.builtin.setup:
+    gather_subset: hardware
+
+- include_tasks: per_disk_match.yml
+- include_tasks: per_disk_report.yml

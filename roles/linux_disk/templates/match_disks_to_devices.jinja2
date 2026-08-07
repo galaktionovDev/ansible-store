@@ -1,0 +1,79 @@
+{%- set id_prefixes = ['scsi0qemuqemuharddisk', 'scsi3', 'virtio', 'scsi', 'ata', 'wwn0x', 'wwn', 'nvmeeui'] -%}
+{%- set claimed = namespace(v=[]) -%}
+{%- set matched = [] -%}
+{%- set pending = [] -%}
+{%- set unmatched = [] -%}
+{%- set conflicts = [] -%}
+{%- for disk in extra_disks | default([]) -%}
+    {%- set found = namespace(dev='') -%}
+    {%- if disk.uuid is defined and disk.uuid -%}
+        {%- set nuuid = disk.uuid | replace('-', '') | replace('_', '') | lower -%}
+        {%- for dev_name, dev_params in disk_devices | dictsort if dev_name != boot_disk_name and dev_name not in claimed.v and not found.dev -%}
+            {%- set dev_ids = (dev_params.links.ids | default([])) + ([dev_params.serial] if (dev_params.serial is defined and dev_params.serial) else []) -%}
+            {%- for id in dev_ids if not found.dev -%}
+                {%- set nid_full = id | replace('-', '') | replace('_', '') | lower -%}
+                {%- set nid = namespace(v=nid_full) -%}
+                {%- set stripped = namespace(done=false) -%}
+                {%- for p in id_prefixes if not stripped.done -%}
+                    {%- if nid.v.startswith(p) -%}
+                        {%- set nid.v = nid.v[p | length:] -%}
+                        {%- set stripped.done = true -%}
+                    {%- endif -%}
+                {%- endfor -%}
+                {%- if (nuuid in nid_full) or (nid.v | length >= 8 and nid.v in nuuid) -%}
+                    {%- set found.dev = dev_name -%}
+                {%- endif -%}
+            {%- endfor -%}
+        {%- endfor -%}
+    {%- endif -%}
+    {%- if found.dev -%}
+        {%- set dev_params = disk_devices[found.dev] -%}
+        {%- set serial = namespace(v='') -%}
+        {%- if dev_params.serial is defined and dev_params.serial -%}
+            {%- set serial.v = dev_params.serial -%}
+        {%- else -%}
+            {%- for id in dev_params.links.ids | default([]) if (id.startswith('virtio-') or id.startswith('scsi-')) and not serial.v -%}
+                {%- set serial.v = id -%}
+            {%- endfor -%}
+        {%- endif -%}
+        {%- set entry = {} -%}
+        {%- set _ = entry.update(disk) -%}
+        {%- set _ = entry.update({'device': found.dev, 'path': '/dev/' + found.dev, 'serial': serial.v, 'match': 'uuid'}) -%}
+        {%- set _ = matched.append(entry) -%}
+        {%- set claimed.v = claimed.v + [found.dev] -%}
+    {%- else -%}
+        {%- set _ = pending.append(disk) -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for disk in pending -%}
+    {%- set cands = [] -%}
+    {%- for dev_name, dev_params in disk_devices | dictsort if dev_name != boot_disk_name and dev_name not in claimed.v -%}
+        {%- set gb = dev_params.sectors | int * dev_params.sectorsize | int // 1024 ** 3 -%}
+        {%- if disk.size is defined and gb == disk.size | int -%}
+            {%- set _ = cands.append(dev_name) -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {%- set ident = disk.name | default('size=' ~ (disk.size | default('?'))) -%}
+    {%- if cands | length == 0 -%}
+        {%- set _ = unmatched.append(ident) -%}
+    {%- elif cands | length > 1 -%}
+        {%- set _ = conflicts.append(ident ~ ': кандидаты ' ~ (cands | join(', ')) ~ ' (одинаковый размер, uuid не передан)') -%}
+    {%- else -%}
+        {%- set dev_name = cands[0] -%}
+        {%- set dev_params = disk_devices[dev_name] -%}
+        {%- set serial = namespace(v='') -%}
+        {%- if dev_params.serial is defined and dev_params.serial -%}
+            {%- set serial.v = dev_params.serial -%}
+        {%- else -%}
+            {%- for id in dev_params.links.ids | default([]) if (id.startswith('virtio-') or id.startswith('scsi-')) and not serial.v -%}
+                {%- set serial.v = id -%}
+            {%- endfor -%}
+        {%- endif -%}
+        {%- set entry = {} -%}
+        {%- set _ = entry.update(disk) -%}
+        {%- set _ = entry.update({'device': dev_name, 'path': '/dev/' + dev_name, 'serial': serial.v, 'match': 'size'}) -%}
+        {%- set _ = matched.append(entry) -%}
+        {%- set claimed.v = claimed.v + [dev_name] -%}
+    {%- endif -%}
+{%- endfor -%}
+{{ {'matched': matched, 'unmatched': unmatched, 'conflicts': conflicts} | tojson }}

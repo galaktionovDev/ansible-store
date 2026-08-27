@@ -1,0 +1,21 @@
+---
+
+# Бэкенд настройки сети: netplan для ubuntu, nmcli для всего остального
+network_backend: "{{ 'netplan' if ansible_distribution | lower == 'ubuntu' else 'nmcli' }}"
+
+# Первый IPv4-адрес нового интерфейса из данных резервации (reserve output).
+_ipv4_addrs: "{{ new_nic.addresses | default([]) | selectattr('type', 'equalto', 'ipv4') | list }}"
+nic_addr: "{{ _ipv4_addrs[0] if (_ipv4_addrs | length > 0) else (new_nic.addresses[0] if (new_nic.addresses | default([]) | length > 0) else {}) }}"
+
+nic_ip: "{{ nic_addr.address | default('') }}"
+nic_prefix: "{{ nic_addr.bitmask | default('') }}"
+nic_netmask: "{{ nic_addr.netmask | default('') }}"
+nic_network: "{{ nic_addr.prefix | default('') }}"
+nic_gw: "{{ nic_addr.default_gw | default('') }}"
+
+# Таблица маршрутизации/приоритет правила.
+route_table: >-
+  {{ (new_nic.uuid | int)
+     if (new_nic.uuid | default('') | string | length > 0 and (new_nic.uuid | string) is match('^[0-9]+$'))
+     else (extra_nic_table_base | int + (extra_nics | default([]) | length)) }}
+route_priority: "{{ route_table }}"

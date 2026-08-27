@@ -1,0 +1,21 @@
+---
+# Персистентная настройка через NetworkManager.
+# gw4 НЕ задаётся намеренно: дефолт для доп. интерфейса живёт только в его таблице (PBR),
+# чтобы не конфликтовать с основным маршрутом default_nic в main-таблице.
+
+- name: Настройка соединения дополнительного NIC (nmcli)
+  community.general.nmcli:
+    conn_name: "extra-{{ target_iface }}"
+    ifname: "{{ target_iface }}"
+    type: ethernet
+    method4: manual
+    ip4: "{{ nic_ip }}/{{ nic_prefix }}"
+    routes4: >-
+      {{ [ '0.0.0.0/0 ' ~ nic_gw ~ ' table=' ~ route_table,
+           nic_network ~ ' table=' ~ route_table ]
+         if (nic_gw | length > 0) else [] }}
+    routing_rules4: >-
+      {{ [ 'priority ' ~ route_priority ~ ' from ' ~ nic_ip ~ ' table ' ~ route_table ]
+         if (nic_gw | length > 0) else [] }}
+    autoconnect: true
+    state: present

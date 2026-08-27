@@ -15,7 +15,10 @@ network:
         - to: 0.0.0.0/0
           via: {{ nic_gw }}
           table: {{ route_table }}
+          on-link: true
+{% if nic_network | length > 0 %}
         - to: {{ nic_network }}
           scope: link
           table: {{ route_table }}
+{% endif %}
 {% endif %}

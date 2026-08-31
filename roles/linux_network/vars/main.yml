@@ -23,3 +23,7 @@ route_table: >-
      if (new_nic.uuid | default('') | string | length > 0 and (new_nic.uuid | string) is match('^[0-9]+$'))
      else (extra_nic_table_base | int + (extra_nics | default([]) | length)) }}
 route_priority: "{{ route_table }}"
+
+del_mac: "{{ (nic.mac_address | default('')) | lower }}"
+_del_ipv4: "{{ nic.addresses | default([]) | selectattr('type','equalto','ipv4') | list }}"
+del_ip: "{{ (_del_ipv4[0].address | default('')) if (_del_ipv4 | length > 0) else '' }}"

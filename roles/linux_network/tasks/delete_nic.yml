@@ -1,0 +1,20 @@
+---
+- name: Идентификация удаляемого интерфейса
+  ansible.builtin.include_tasks: identify_nic.yml
+  vars:
+    new_nic: "{{ nic }}"
+
+- name: Снятие конфигурации (netplan)
+  ansible.builtin.include_tasks: cleanup_netplan.yml
+  when: network_backend == 'netplan'
+
+- name: Снятие конфигурации (nmcli)
+  ansible.builtin.include_tasks: cleanup_nmcli.yml
+  when: network_backend == 'nmcli'
+
+- name: Возврат данных в граф
+  ansible.builtin.set_stats:
+    data:
+      nic_cleanup:
+        removed_iface: "{{ target_iface | default('') }}"
+        removed_ip: "{{ del_ip }}"

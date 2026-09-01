@@ -91,9 +91,9 @@
            (set_repositories_required_repo.apt.get('ubuntu-' + ansible_distribution_major_version, [])
            if ansible_distribution == 'Ubuntu' and ansible_distribution_major_version in ['22', '24']
            else [])+
-            (set_repositories_required_repo.apt.get('alse-' + (ansible_distribution_version | replace('.', '-')), [])
-            if 'Astra' in ansible_distribution
-            else [])
+            (set_repositories_required_repo.apt.get('alse-1-8', [])
+           if 'Astra' in ansible_distribution and ansible_distribution_version is search('1\.8')
+           else [])
           }}
 ###
 # Feature exclusive repos APT

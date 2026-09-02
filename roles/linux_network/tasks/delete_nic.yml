@@ -4,11 +4,11 @@
   vars:
     new_nic: "{{ nic }}"
 
-- name: Снятие конфигурации (netplan)
+- name: Снятие конфигурации
   ansible.builtin.include_tasks: cleanup_netplan.yml
   when: network_backend == 'netplan'
 
-- name: Снятие конфигурации (nmcli)
+- name: Снятие конфигурации
   ansible.builtin.include_tasks: cleanup_nmcli.yml
   when: network_backend == 'nmcli'
 

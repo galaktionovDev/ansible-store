@@ -8,5 +8,5 @@
 - name: Сбор фактов
   ansible.builtin.setup:
 
-- name: "Выполнение интерфейса {{ interface }}"
+- name: "Выполнение сценария {{ interface }}"
   ansible.builtin.include_tasks: "{{ interface }}.yml"

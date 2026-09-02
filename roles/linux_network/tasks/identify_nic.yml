@@ -1,8 +1,5 @@
 ---
-# ВРЕМЕННО ДВА ТРЕКА!!! Зависит от доработки cloud-mate
-# Трек A: по MAC (если CloudMate вернул nics[].mac_address -> прокинут в new_nic.mac_address).
-# Трек B: первый ether-интерфейс без IPv4 (когда MAC ещё не отдаётся).
-# Общий файл — переиспользуется будущим delete_nic.yml.
+# На всякий случай работает двумя треками: либо матчим по маку, либо первый без настроек.
 
 - name: Инвентаризация интерфейсов
   ansible.builtin.set_fact:
@@ -17,7 +14,7 @@
   loop_control:
     label: "{{ item }}"
 
-- name: "Трек A — поиск по MAC"
+- name: Поиск по MAC
   ansible.builtin.set_fact:
     _by_mac: >-
       {{ _iface_info
@@ -26,7 +23,7 @@
          | map(attribute='name') | list }}
   when: new_nic.mac_address | default('') | length > 0
 
-- name: "Трек B — первый ненастроенный ether-интерфейс"
+- name: Первый ненастроенный ether-интерфейс
   ansible.builtin.set_fact:
     _unconfigured: >-
       {{ _iface_info

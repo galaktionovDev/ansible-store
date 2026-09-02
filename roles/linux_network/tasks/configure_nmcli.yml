@@ -1,7 +1,6 @@
 ---
-# Персистентная настройка через NetworkManager.
 
-- name: Настройка соединения дополнительного NIC (nmcli)
+- name: Настройка соединения дополнительного NIC
   community.general.nmcli:
     conn_name: "extra-{{ target_iface }}"
     ifname: "{{ target_iface }}"

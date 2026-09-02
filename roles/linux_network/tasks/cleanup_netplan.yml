@@ -5,13 +5,13 @@
     state: absent
   when: target_iface | length > 0
 
-- name: Подстраховка — удалить netplan-файлы с этим IP
+- name: Удалить netplan-файлы с этим IP
   ansible.builtin.shell: "grep -rl '{{ del_ip }}' /etc/netplan/60-extra-*.yaml 2>/dev/null | xargs -r rm -f"
   when: del_ip | length > 0
   changed_when: true
   failed_when: false
 
-- name: Снять ip rule и таблицу (рантайм)
+- name: Снять ip rule и таблицу
   ansible.builtin.shell: "ip rule del from {{ del_ip }} 2>/dev/null; ip route flush table {{ route_table }} 2>/dev/null || true"
   when: del_ip | length > 0
   changed_when: true

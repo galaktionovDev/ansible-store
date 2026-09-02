@@ -3,11 +3,11 @@
 - name: Идентификация целевого интерфейса
   ansible.builtin.include_tasks: identify_nic.yml
 
-- name: Настройка через netplan (ubuntu)
+- name: Настройка через netplan
   ansible.builtin.include_tasks: configure_netplan.yml
   when: network_backend == 'netplan'
 
-- name: Настройка через nmcli (redos/centos/oracle/alma/astra)
+- name: Настройка через nmcli
   ansible.builtin.include_tasks: configure_nmcli.yml
   when: network_backend == 'nmcli'
 
@@ -15,7 +15,7 @@
   ansible.builtin.setup:
     gather_subset: network
 
-- name: Итоговый MAC (из CloudMate либо прочитанный из ОС)
+- name: Итоговый MAC
   ansible.builtin.set_fact:
     nic_mac_final: >-
       {{ new_nic.mac_address
@@ -26,7 +26,7 @@
   ansible.builtin.set_fact:
     _result_nic: "{{ new_nic | combine({'mac_address': nic_mac_final}) }}"
 
-- name: Обновлённый список extra_nics (последний элемент — новый NIC с MAC)
+- name: Обновлённый список extra_nics
   ansible.builtin.set_fact:
     _extra_nics_out: "{{ (extra_nics[:-1] if (extra_nics | default([])) | length > 0 else []) + [_result_nic] }}"
 

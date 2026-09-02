@@ -6,13 +6,13 @@
   when: target_iface | length > 0
   failed_when: false
 
-- name: Подстраховка — удалить соединение по имени, если target_iface пуст
+- name: Удалить соединение по имени
   ansible.builtin.shell: "nmcli -t -f NAME connection show | grep '^extra-' | while read c; do nmcli connection delete \"$c\"; done"
   when: target_iface | length == 0
   changed_when: true
   failed_when: false
 
-- name: Снять ip rule и таблицу (рантайм)
+- name: Снять ip rule и таблицу
   ansible.builtin.shell: "ip rule del from {{ del_ip }} 2>/dev/null; ip route flush table {{ route_table }} 2>/dev/null || true"
   when: del_ip | length > 0
   changed_when: true

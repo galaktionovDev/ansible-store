@@ -1,0 +1,12 @@
+---
+
+- name: Проверка допустимости интерфейса
+  ansible.builtin.fail:
+    msg: "Interface '{{ interface | default('undefined') }}' is not allowed. Allowed: {{ allowed_interfaces }}"
+  when: interface is not defined or interface not in allowed_interfaces
+
+- name: Сбор фактов
+  ansible.builtin.setup:
+
+- name: "Выполнение сценария {{ interface }}"
+  ansible.builtin.include_tasks: "{{ interface }}.yml"

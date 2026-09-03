@@ -1,0 +1,18 @@
+---
+
+- name: Настройка соединения дополнительного NIC
+  community.general.nmcli:
+    conn_name: "extra-{{ target_iface }}"
+    ifname: "{{ target_iface }}"
+    type: ethernet
+    method4: manual
+    ip4: "{{ nic_ip }}/{{ nic_prefix }}"
+    routes4: >-
+      {{ ([ '0.0.0.0/0 ' ~ nic_gw ~ ' table=' ~ route_table ~ ' onlink=true' ]
+          + ([ nic_network ~ ' table=' ~ route_table ] if (nic_network | length > 0) else []))
+         if (nic_gw | length > 0) else [] }}
+    routing_rules4: >-
+      {{ [ 'priority ' ~ route_priority ~ ' from ' ~ nic_ip ~ ' table ' ~ route_table ]
+         if (nic_gw | length > 0) else [] }}
+    autoconnect: true
+    state: present

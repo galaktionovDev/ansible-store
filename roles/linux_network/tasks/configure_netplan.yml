@@ -1,0 +1,17 @@
+---
+
+- name: Рендер netplan-файла для дополнительного интерфейса
+  ansible.builtin.template:
+    src: 60-extra-nic.yaml.j2
+    dest: "/etc/netplan/60-extra-{{ target_iface }}.yaml"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: netplan generate
+  ansible.builtin.command: netplan generate
+  changed_when: true
+
+- name: netplan apply
+  ansible.builtin.command: netplan apply
+  changed_when: true

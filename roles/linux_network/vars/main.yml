@@ -1,0 +1,29 @@
+---
+network_backend: "{{ 'netplan' if ansible_distribution | lower == 'ubuntu' else 'nmcli' }}"
+
+_ipv4_addrs: "{{ new_nic.addresses | default([]) | selectattr('type', 'equalto', 'ipv4') | list }}"
+nic_addr: "{{ _ipv4_addrs[0] if (_ipv4_addrs | length > 0) else (new_nic.addresses[0] if (new_nic.addresses | default([]) | length > 0) else {}) }}"
+
+nic_ip: "{{ nic_addr.address | default('') }}"
+nic_prefix: "{{ nic_addr.bitmask | default('') }}"
+nic_netmask: "{{ nic_addr.netmask | default('') }}"
+nic_gw: "{{ nic_addr.default_gw | default('') }}"
+
+_ip_octets: "{{ nic_ip.split('.') if (nic_ip | length > 0) else [] }}"
+_mask_octets: "{{ nic_netmask.split('.') if (nic_netmask.split('.') | length == 4) else [] }}"
+nic_network: >-
+  {{ (((_ip_octets[0] | int) - (_ip_octets[0] | int) % (256 - (_mask_octets[0] | int))) ~ '.' ~
+      ((_ip_octets[1] | int) - (_ip_octets[1] | int) % (256 - (_mask_octets[1] | int))) ~ '.' ~
+      ((_ip_octets[2] | int) - (_ip_octets[2] | int) % (256 - (_mask_octets[2] | int))) ~ '.' ~
+      ((_ip_octets[3] | int) - (_ip_octets[3] | int) % (256 - (_mask_octets[3] | int))) ~ '/' ~ nic_prefix)
+     if (_ip_octets | length == 4 and _mask_octets | length == 4 and nic_prefix | length > 0) else '' }}
+
+route_table: >-
+  {{ (new_nic.uuid | int)
+     if (new_nic.uuid | default('') | string | length > 0 and (new_nic.uuid | string) is match('^[0-9]+$'))
+     else (extra_nic_table_base | int + (extra_nics | default([]) | length)) }}
+route_priority: "{{ route_table }}"
+
+del_mac: "{{ (nic.mac_address | default('')) | lower }}"
+_del_ipv4: "{{ nic.addresses | default([]) | selectattr('type','equalto','ipv4') | list }}"
+del_ip: "{{ (_del_ipv4[0].address | default('')) if (_del_ipv4 | length > 0) else '' }}"

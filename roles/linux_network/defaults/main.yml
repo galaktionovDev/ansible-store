@@ -1,0 +1,10 @@
+---
+
+ansible_become: true
+
+extra_nic_table_base: 100
+
+# Диспетчер интерфейсов роли.
+allowed_interfaces:
+  - add_nic
+  - delete_nic

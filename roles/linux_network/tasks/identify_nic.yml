@@ -1,0 +1,50 @@
+---
+# На всякий случай работает двумя треками: либо матчим по маку, либо первый без настроек.
+
+- name: Инвентаризация интерфейсов
+  ansible.builtin.set_fact:
+    _iface_info: >-
+      {{ _iface_info | default([]) + [ {
+           'name': item,
+           'type': (ansible_facts[item].type | default('')),
+           'mac':  (ansible_facts[item].macaddress | default('') | lower),
+           'has_ipv4': (ansible_facts[item].ipv4 is defined)
+         } ] }}
+  loop: "{{ ansible_facts.interfaces }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Поиск по MAC
+  ansible.builtin.set_fact:
+    _by_mac: >-
+      {{ _iface_info
+         | selectattr('type', 'equalto', 'ether')
+         | selectattr('mac', 'equalto', new_nic.mac_address | default('') | lower)
+         | map(attribute='name') | list }}
+  when: new_nic.mac_address | default('') | length > 0
+
+- name: Первый ненастроенный ether-интерфейс
+  ansible.builtin.set_fact:
+    _unconfigured: >-
+      {{ _iface_info
+         | selectattr('type', 'equalto', 'ether')
+         | rejectattr('has_ipv4')
+         | map(attribute='name') | sort | list }}
+
+- name: Выбор целевого интерфейса
+  ansible.builtin.set_fact:
+    target_iface: >-
+      {{ (_by_mac[0])
+         if (new_nic.mac_address | default('') | length > 0 and (_by_mac | default([])) | length > 0)
+         else (_unconfigured[0] if (_unconfigured | default([])) | length > 0 else '') }}
+
+- name: Ошибка, если интерфейс не найден
+  ansible.builtin.fail:
+    msg: >-
+      Не удалось определить новый сетевой интерфейс
+      (mac='{{ new_nic.mac_address | default('') }}', unconfigured={{ _unconfigured | default([]) }})
+  when: target_iface | length == 0
+
+- name: Целевой интерфейс
+  ansible.builtin.debug:
+    msg: "target_iface={{ target_iface }} ip={{ nic_ip }}/{{ nic_prefix }} gw={{ nic_gw }} table={{ route_table }}"

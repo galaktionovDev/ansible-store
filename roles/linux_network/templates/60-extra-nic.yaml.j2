@@ -1,0 +1,24 @@
+network:
+  version: 2
+  ethernets:
+    {{ target_iface }}:
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - {{ nic_ip }}/{{ nic_prefix }}
+{% if nic_gw | length > 0 %}
+      routing-policy:
+        - from: {{ nic_ip }}
+          table: {{ route_table }}
+          priority: {{ route_priority }}
+      routes:
+        - to: 0.0.0.0/0
+          via: {{ nic_gw }}
+          table: {{ route_table }}
+          on-link: true
+{% if nic_network | length > 0 %}
+        - to: {{ nic_network }}
+          scope: link
+          table: {{ route_table }}
+{% endif %}
+{% endif %}

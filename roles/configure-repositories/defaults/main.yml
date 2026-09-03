@@ -25,6 +25,15 @@ set_repositories_required_repo:
     debian-13:
       - name: cld-repository-debian-13
         repo_string: "deb {{ nexus_url }}/repository/products-apt-debian-13/ trixie main"
+    ubuntu-22:
+      - name: cld-repository-ubuntu-22
+        repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-22/ jammy main"
+    ubuntu-24:
+      - name: cld-repository-ubuntu-24
+        repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-24/ noble main"
+    alse-1-8:
+      - name: cld-repository-alse-1-8
+        repo_string: "deb {{ nexus_url }}/repository/products-apt-alse-1-8/ main main"    
 
 ###
 # Feature exclusive repos APT
@@ -35,9 +44,6 @@ set_repositories_required_repo:
 #   ubuntu20:
 #     - name: cld-repository-ubuntu20
 #       repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-20/ focal main"
-#   ubuntu22:
-#     - name: cld-repository-ubuntu-22
-#       repo_string: "deb {{ nexus_url }}/repository/products-apt-ubuntu-22/ jammy main"
 #   astra-1-7:
 #     - name: cld-repository-alse-1-7
 #       repo_string: "deb {{ nexus_url }}/repository/products-apt-alse-1-7/ {{ ansible_distribution_version }} main"

@@ -1,0 +1,30 @@
+---
+- name: Retrieve cluster credentials from StarVault
+  community.hashi_vault.vault_kv2_get:
+    url: "{{ vault_addr }}"
+    token: "{{ vault_token }}"
+    auth_method: "token"
+    engine_mount_point: "shared-secret"
+    path: "{{ vault_target }}"       
+    validate_certs: false
+  register: _vault_creds
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Ensure credentials directory exists on master
+  ansible.builtin.file:
+    path: /etc/kubernetes/credentials
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+
+- name: Save all credentials to a single JSON file
+  ansible.builtin.copy:
+    content: "{{ _vault_creds.secret | to_nice_json }}"
+    dest: /etc/kubernetes/credentials/nova_console_access.json
+    mode: '0600'
+    owner: root
+    group: root
+  no_log: true

@@ -8,6 +8,24 @@
 
 - setup:
 
+- name: Check actual hostname on vm
+  ansible.builtin.command: hostname
+  register: hostname_check
+  changed_when: false
+
+- name: Fail if hostname does not match inventory
+  ansible.builtin.fail:
+    msg: >-
+      Hostname mismatch detected for IP '{{ ansible_host }}'.
+      Inventory expects '{{ inventory_hostname }}', but the machine
+      answering on this IP identifies itself as
+      '{{ hostname_check.stdout }}'.
+
+      Possible cause: IP '{{ ansible_host }}' was previously assigned to
+      VM '{{ hostname_check.stdout }}', which may still be running
+      or not fully deprovisioned.
+  when: hostname_check.stdout != inventory_hostname
+
 - name: Put cloud public key file
   authorized_key:
     user: "{{ ansible_user }}"

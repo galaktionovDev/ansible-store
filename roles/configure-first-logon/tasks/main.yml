@@ -24,7 +24,7 @@
       Possible cause: IP '{{ ansible_host }}' was previously assigned to
       VM '{{ hostname_check.stdout }}', which may still be running
       or not fully deprovisioned.
-  when: hostname_check.stdout != inventory_hostname
+  when: not (hostname_check.stdout == inventory_hostname or hostname_check.stdout.startswith(inventory_hostname + '.'))
 
 - name: Put cloud public key file
   authorized_key:

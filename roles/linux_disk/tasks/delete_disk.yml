@@ -62,6 +62,23 @@
           {{ dd_vgs.stdout_lines | default([]) | map('trim')
              | select('match', '^vg_') | reject('equalto', app_vg_name) | list }}
 
+    - name: Check allocated extents on deleted PV
+      command: pvs --noheadings --nosuffix -o pv_used /dev/{{ dd_device }}
+      register: dd_pv_used
+      failed_when: false
+      changed_when: false
+
+    - name: Fail if deleted disk still holds data
+      fail:
+        msg: >-
+          Диск /dev/{{ dd_device }} содержит размещённые данные
+          (занято {{ dd_pv_used.stdout | trim }}). Освободите диск вручную
+          (перенесите или удалите тома) перед удалением.
+      when:
+        - dd_pv_used.rc == 0
+        - (dd_pv_used.stdout | trim | float) > 0
+        - dd_target_vgs | length == 0
+
     - name: Print target VGs
       debug:
         var: dd_target_vgs
@@ -82,6 +99,15 @@
       command: vgremove -f "{{ item }}"
       loop: "{{ dd_target_vgs }}"
       when: dd_target_vgs | length > 0
+      notify: update_facts
+
+    - name: Reduce shared VG by the empty deleted PV
+      command: vgreduce "{{ app_vg_name }}" /dev/{{ dd_device }}
+      when:
+        - dd_target_vgs | length == 0
+        - dd_pv_used.rc == 0
+        - (dd_pv_used.stdout | trim | float) == 0
+      failed_when: false
       notify: update_facts
 
     - name: Wipe PV signature on deleted device

@@ -1,6 +1,31 @@
 ---
 # На всякий случай работает двумя треками: либо матчим по маку, либо первый без настроек.
 
+- name: Ожидание появления hot-plug интерфейса
+  ansible.builtin.shell: "grep -il '{{ new_nic.mac_address | lower }}' /sys/class/net/*/address"
+  register: _mac_probe
+  until: _mac_probe.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+  failed_when: false
+  when: new_nic.mac_address | default('') | length > 0
+ 
+- name: Ошибка если интерфейс не найден
+  ansible.builtin.fail:
+    msg: >-
+      Интерфейс с MAC {{ new_nic.mac_address }} не появился в гостевой ОС за ~60с.
+      Требуется детальная диагностика.
+  when:
+    - new_nic.mac_address | default('') | length > 0
+    - _mac_probe.rc is defined
+    - _mac_probe.rc != 0
+ 
+- name: Перечитать сетевые факты после hot-plug
+  ansible.builtin.setup:
+    gather_subset: network
+  when: new_nic.mac_address | default('') | length > 0
+ 
 - name: Инвентаризация интерфейсов
   ansible.builtin.set_fact:
     _iface_info: >-
@@ -13,7 +38,7 @@
   loop: "{{ ansible_facts.interfaces }}"
   loop_control:
     label: "{{ item }}"
-
+ 
 - name: Поиск по MAC
   ansible.builtin.set_fact:
     _by_mac: >-
@@ -22,7 +47,7 @@
          | selectattr('mac', 'equalto', new_nic.mac_address | default('') | lower)
          | map(attribute='name') | list }}
   when: new_nic.mac_address | default('') | length > 0
-
+ 
 - name: Первый ненастроенный ether-интерфейс
   ansible.builtin.set_fact:
     _unconfigured: >-
@@ -30,21 +55,21 @@
          | selectattr('type', 'equalto', 'ether')
          | rejectattr('has_ipv4')
          | map(attribute='name') | sort | list }}
-
+ 
 - name: Выбор целевого интерфейса
   ansible.builtin.set_fact:
     target_iface: >-
       {{ (_by_mac[0])
          if (new_nic.mac_address | default('') | length > 0 and (_by_mac | default([])) | length > 0)
          else (_unconfigured[0] if (_unconfigured | default([])) | length > 0 else '') }}
-
+ 
 - name: Ошибка, если интерфейс не найден
   ansible.builtin.fail:
     msg: >-
       Не удалось определить новый сетевой интерфейс
       (mac='{{ new_nic.mac_address | default('') }}', unconfigured={{ _unconfigured | default([]) }})
   when: target_iface | length == 0
-
+ 
 - name: Целевой интерфейс
   ansible.builtin.debug:
     msg: "target_iface={{ target_iface }} ip={{ nic_ip }}/{{ nic_prefix }} gw={{ nic_gw }} table={{ route_table }}"

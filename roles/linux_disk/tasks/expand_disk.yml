@@ -27,12 +27,5 @@
     data:
       disk_devices_data:
         layout: shared
-        extra_disks: >-
-          {%- set out = [] -%}
-          {%- for d in disks_matched | default([]) -%}
-            {%- set e = {} -%}{%- do e.update(d) -%}
-            {%- for k in ['match', 'device'] if k in e -%}{%- do e.pop(k) -%}{%- endfor -%}
-            {%- do out.append(e) -%}
-          {%- endfor -%}
-          {{ out }}
+        extra_disks: "{{ lookup('template', 'report_shared_disks.jinja2') }}"
   when: disk_layout != 'per_disk'

@@ -1,7 +1,7 @@
 {%- set out = [] -%}
 {%- for d in disks_matched | default([]) -%}
-  {%- set e = {} -%}{%- do e.update(d) -%}
-  {%- for k in ['match', 'device'] if k in e -%}{%- do e.pop(k) -%}{%- endfor -%}
-  {%- do out.append(e) -%}
+  {%- set e = {} -%}{%- set _ = e.update(d) -%}
+  {%- for k in ['match', 'device'] if k in e -%}{%- set _ = e.pop(k) -%}{%- endfor -%}
+  {%- set _ = out.append(e) -%}
 {%- endfor -%}
 {{ out | tojson }}

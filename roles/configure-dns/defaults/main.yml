@@ -2,6 +2,7 @@
 
 ansible_become: true
 dns_servers: []
-
+dns_route_all_queries: true
+dns_check_hostname: ""
 ...
 

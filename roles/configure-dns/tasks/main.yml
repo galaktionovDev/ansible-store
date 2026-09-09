@@ -92,19 +92,17 @@
 
     - name: Формирование итогового содержимого resolv.conf
       ansible.builtin.set_fact:
-        dns_resolv_content: >-
-          {{ ((dns_servers + dns_present) | unique | map('regex_replace', '^', 'nameserver ') | list
-              + dns_extra_lines) | join('\n') + '\n' }}
-        dns_head_content: >-
-          {{ ((dns_servers + dns_present) | unique | map('regex_replace', '^', 'nameserver ') | list)
-             | join('\n') + '\n' }}
+        dns_head_content: "{{ dns_ns_lines | join('\n') + '\n' }}"
+        dns_resolv_content: "{{ (dns_ns_lines + dns_extra_lines) | join('\n') + '\n' }}"
       vars:
         dns_lines: "{{ (dns_resolv_raw.content | b64decode).splitlines() }}"
         dns_present: >-
           {{ dns_lines | select('match', '^[ \t]*nameserver[ \t]+')
-             | map('regex_replace', '^[ \t]*nameserver[ \t]+', '') | map('trim') | list }}
+            | map('regex_replace', '^[ \t]*nameserver[ \t]+', '') | map('trim') | list }}
         dns_extra_lines: >-
           {{ dns_lines | reject('match', '^[ \t]*nameserver[ \t]+') | reject('equalto', '') | list }}
+        dns_ns_lines: >-
+          {{ (dns_servers + dns_present) | unique | map('regex_replace', '^', 'nameserver ') | list }}
 
     - name: Проверка наличия каталога resolvconf
       ansible.builtin.stat:

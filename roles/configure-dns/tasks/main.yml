@@ -1,4 +1,5 @@
 ---
+
 - name: Сбор фактов об операционной системе
   ansible.builtin.setup:
     gather_subset: min
@@ -13,11 +14,18 @@
     fail_msg: "Переменная dns_servers должна быть непустым списком IP-адресов"
     quiet: true
 
-- name: Проверка активности NetworkManager
-  ansible.builtin.command: systemctl is-active NetworkManager
-  register: dns_nm_active
-  changed_when: false
-  failed_when: false
+
+- name: Инспекция /etc/resolv.conf
+  ansible.builtin.stat:
+    path: /etc/resolv.conf
+    follow: false
+  register: dns_resolv_stat
+
+- name: Чтение содержимого /etc/resolv.conf
+  ansible.builtin.slurp:
+    src: /etc/resolv.conf
+  register: dns_resolv_raw
+  when: dns_resolv_stat.stat.exists
 
 - name: Проверка активности systemd-resolved
   ansible.builtin.command: systemctl is-active systemd-resolved
@@ -25,35 +33,57 @@
   changed_when: false
   failed_when: false
 
+- name: Проверка активности NetworkManager
+  ansible.builtin.command: systemctl is-active NetworkManager
+  register: dns_nm_active
+  changed_when: false
+  failed_when: false
+
+- name: Получение модифицируемых соединений NetworkManager
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    nmcli -t -f NAME,TYPE,UUID connection show 2>/dev/null
+    | awk -F: '$2 ~ /(^|-)ethernet$|^(bond|bridge|vlan|team|infiniband)$/ && $1 !~ /^Ifupdown/ {print $3}'
+  args:
+    executable: /bin/bash
+  register: dns_nm_writable
+  changed_when: false
+  failed_when: false
+  when: dns_nm_active.rc == 0
+
 - name: Определение сетевой подсистемы
   ansible.builtin.set_fact:
     dns_backend: >-
-      {{ 'networkmanager' if dns_nm_active.rc == 0
-         else 'systemd-resolved' if dns_resolved_active.rc == 0
-         else 'ifupdown' }}
+      {{ 'resolvconf' if ('resolvconf' in dns_resolv_head
+                          or (dns_resolv_islnk and 'resolvconf' in dns_resolv_target))
+         else 'systemd-resolved' if (dns_resolved_active.rc == 0
+                                     and dns_resolv_islnk
+                                     and 'systemd/resolve' in dns_resolv_target)
+         else 'networkmanager' if (dns_nm_active.rc == 0
+                                   and dns_nm_uuids | length > 0
+                                   and 'NetworkManager' in dns_resolv_head)
+         else 'direct' }}
+  vars:
+    dns_resolv_head: "{{ (dns_resolv_raw.content | default('') | b64decode) if dns_resolv_stat.stat.exists else '' }}"
+    dns_resolv_islnk: "{{ dns_resolv_stat.stat.islnk | default(false) }}"
+    dns_resolv_target: "{{ dns_resolv_stat.stat.lnk_target | default('') }}"
+    dns_nm_uuids: "{{ dns_nm_writable.stdout_lines | default([]) }}"
+
+- name: Информация о выбранном бэкенде
+  ansible.builtin.debug:
+    msg: "DNS backend: {{ dns_backend }}"
+
 
 - name: Настройка DNS через NetworkManager
   when: dns_backend == 'networkmanager'
   become: true
   block:
-    - name: Получение активных сетевых соединений
-      ansible.builtin.command:
-        cmd: nmcli -t -f TYPE,UUID connection show --active
-      register: dns_nm_list
-      changed_when: false
-
     - name: Получение текущих DNS-серверов соединений
       ansible.builtin.command:
         cmd: nmcli -g ipv4.dns connection show {{ item }}
       register: dns_nm_state
       changed_when: false
-      loop: >-
-        {{ dns_nm_list.stdout_lines
-           | select('match', dns_nm_types)
-           | map('regex_replace', '^[^:]+:', '')
-           | list }}
-      vars:
-        dns_nm_types: '^(ethernet|802-3-ethernet|bond|bridge|vlan|team|infiniband):'
+      loop: "{{ dns_nm_writable.stdout_lines }}"
 
     - name: Применение DNS-серверов к соединениям
       ansible.builtin.command:
@@ -81,43 +111,19 @@
         timeout: 120
       when: dns_nm_modified.changed
 
-- name: Настройка DNS через ifupdown
-  when: dns_backend == 'ifupdown'
+
+- name: Настройка DNS через resolvconf
+  when: dns_backend == 'resolvconf'
   become: true
   block:
-    - name: Чтение текущего resolv.conf
-      ansible.builtin.slurp:
-        src: /etc/resolv.conf
-      register: dns_resolv_raw
-
-    - name: Формирование итогового содержимого resolv.conf
-      ansible.builtin.set_fact:
-        dns_head_content: "{{ dns_ns_lines | join('\n') + '\n' }}"
-        dns_resolv_content: "{{ (dns_ns_lines + dns_extra_lines) | join('\n') + '\n' }}"
-      vars:
-        dns_lines: "{{ (dns_resolv_raw.content | b64decode).splitlines() }}"
-        dns_present: >-
-          {{ dns_lines | select('match', '^[ \t]*nameserver[ \t]+')
-            | map('regex_replace', '^[ \t]*nameserver[ \t]+', '') | map('trim') | list }}
-        dns_extra_lines: >-
-          {{ dns_lines | reject('match', '^[ \t]*nameserver[ \t]+') | reject('equalto', '') | list }}
-        dns_ns_lines: >-
-          {{ (dns_servers + dns_present) | unique | map('regex_replace', '^', 'nameserver ') | list }}
-
-    - name: Проверка наличия каталога resolvconf
-      ansible.builtin.stat:
-        path: /etc/resolvconf/resolv.conf.d
-      register: dns_resolvconf
-
     - name: Сохранение DNS-серверов в конфигурации resolvconf
       ansible.builtin.copy:
         dest: /etc/resolvconf/resolv.conf.d/head
-        content: "{{ dns_head_content }}"
+        content: "{{ dns_servers | map('regex_replace', '^', 'nameserver ') | join('\n') + '\n' }}"
         owner: root
         group: root
         mode: '0644'
         backup: true
-      when: dns_resolvconf.stat.exists
       register: dns_head_written
 
     - name: Обновление resolv.conf средствами resolvconf
@@ -126,16 +132,6 @@
       when: dns_head_written.changed
       changed_when: true
 
-    - name: Обновление resolv.conf напрямую
-      ansible.builtin.copy:
-        dest: /etc/resolv.conf
-        content: "{{ dns_resolv_content }}"
-        owner: root
-        group: root
-        mode: '0644'
-        backup: true
-        follow: true
-      when: not dns_resolvconf.stat.exists
 
 - name: Настройка DNS через systemd-resolved
   when: dns_backend == 'systemd-resolved'
@@ -161,13 +157,6 @@
         mode: '0644'
       register: dns_resolved_conf
 
-    - name: Переключение resolv.conf на stub systemd-resolved
-      ansible.builtin.file:
-        src: /run/systemd/resolve/stub-resolv.conf
-        dest: /etc/resolv.conf
-        state: link
-        force: true
-
     - name: Активация службы systemd-resolved
       ansible.builtin.systemd:
         name: systemd-resolved
@@ -179,6 +168,36 @@
       when: dns_resolved_conf.changed
       changed_when: false
       failed_when: false
+
+
+- name: Настройка DNS прямой записью resolv.conf
+  when: dns_backend == 'direct'
+  become: true
+  block:
+    - name: Формирование итогового содержимого resolv.conf
+      ansible.builtin.set_fact:
+        dns_resolv_content: "{{ (dns_ns_lines + dns_extra_lines) | join('\n') + '\n' }}"
+      vars:
+        dns_lines: "{{ (dns_resolv_raw.content | default('') | b64decode).splitlines() if dns_resolv_stat.stat.exists else [] }}"
+        dns_present: >-
+          {{ dns_lines | select('match', '^[ \t]*nameserver[ \t]+')
+             | map('regex_replace', '^[ \t]*nameserver[ \t]+', '') | map('trim') | list }}
+        dns_extra_lines: >-
+          {{ dns_lines | reject('match', '^[ \t]*nameserver[ \t]+') | reject('equalto', '') | list }}
+        dns_ns_lines: >-
+          {{ (dns_servers + dns_present) | unique | map('regex_replace', '^', 'nameserver ') | list }}
+
+    - name: Запись resolv.conf
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        content: "{{ dns_resolv_content }}"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+        follow: true
+
+
 
 - name: Проверка разрешения имён
   ansible.builtin.command:

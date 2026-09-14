@@ -26,7 +26,7 @@
   raw: docker inspect -f '{{ '{{.State.Status}}' }}' {{ kafka_cloud_container_name }}
   register: container_status
   until:
-    - container_status.stdout | trim == 'running'
+    - "'running' in container_status.stdout_lines"
   retries: 12
   delay: 5
   changed_when: false

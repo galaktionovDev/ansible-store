@@ -1,18 +1,44 @@
 ---
 
-- name: Настройка соединения дополнительного NIC
+- name: Соединение доп. NIC (только адрес)
   community.general.nmcli:
     conn_name: "extra-{{ target_iface }}"
     ifname: "{{ target_iface }}"
     type: ethernet
     method4: manual
     ip4: "{{ nic_ip }}/{{ nic_prefix }}"
-    routes4: >-
-      {{ ([ '0.0.0.0/0 ' ~ nic_gw ~ ' table=' ~ route_table ~ ' onlink=true' ]
-          + ([ nic_network ~ ' table=' ~ route_table ] if (nic_network | length > 0) else []))
-         if (nic_gw | length > 0) else [] }}
-    routing_rules4: >-
-      {{ [ 'priority ' ~ route_priority ~ ' from ' ~ nic_ip ~ ' table ' ~ route_table ]
-         if (nic_gw | length > 0) else [] }}
     autoconnect: true
     state: present
+
+- name: Dispatcher-скрипт PBR для доп. NIC (версионно-независимо)
+  ansible.builtin.copy:
+    dest: "/etc/NetworkManager/dispatcher.d/99-pbr-{{ target_iface }}"
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      IFACE="$1"; ACTION="$2"
+      [ "$IFACE" = "{{ target_iface }}" ] || exit 0
+      case "$ACTION" in
+        up|dhcp4-change)
+          ip route replace default via {{ nic_gw }} dev {{ target_iface }} onlink table {{ route_table }}
+      {% if nic_network | length > 0 %}
+          ip route replace {{ nic_network }} dev {{ target_iface }} table {{ route_table }}
+      {% endif %}
+          ip rule list | grep -q "from {{ nic_ip }} lookup {{ route_table }}" || ip rule add from {{ nic_ip }} table {{ route_table }} priority {{ route_priority }}
+          ;;
+      esac
+  when: nic_gw | length > 0
+
+- name: Активировать соединение (триггерит dispatcher)
+  ansible.builtin.command: "nmcli connection up extra-{{ target_iface }}"
+  changed_when: true
+
+- name: Применить PBR немедленно (не ждать реконнекта)
+  ansible.builtin.shell: |
+    ip route replace default via {{ nic_gw }} dev {{ target_iface }} onlink table {{ route_table }}
+    {% if nic_network | length > 0 %}
+    ip route replace {{ nic_network }} dev {{ target_iface }} table {{ route_table }}
+    {% endif %}
+    ip rule list | grep -q "from {{ nic_ip }} lookup {{ route_table }}" || ip rule add from {{ nic_ip }} table {{ route_table }} priority {{ route_priority }}
+  when: nic_gw | length > 0
+  changed_when: true

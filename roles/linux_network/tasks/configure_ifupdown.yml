@@ -1,0 +1,26 @@
+---
+
+- name: Конфиг дополнительного интерфейса в /etc/network/interfaces
+  ansible.builtin.blockinfile:
+    path: /etc/network/interfaces
+    marker: "# {mark} LINUX_NETWORK extra {{ target_iface }}"
+    create: false
+    block: |
+      auto {{ target_iface }}
+      allow-hotplug {{ target_iface }}
+      iface {{ target_iface }} inet static
+          address {{ nic_ip }}
+          netmask {{ nic_netmask }}
+      {% if nic_gw | length > 0 %}
+          post-up ip route replace default via {{ nic_gw }} dev {{ target_iface }} onlink table {{ route_table }}
+      {% if nic_network | length > 0 %}
+          post-up ip route replace {{ nic_network }} dev {{ target_iface }} table {{ route_table }}
+      {% endif %}
+          post-up ip rule list | grep -q "from {{ nic_ip }} lookup {{ route_table }}" || ip rule add from {{ nic_ip }} table {{ route_table }} priority {{ route_priority }}
+          pre-down ip rule del from {{ nic_ip }} table {{ route_table }} priority {{ route_priority }} 2>/dev/null || true
+          pre-down ip route flush table {{ route_table }} 2>/dev/null || true
+      {% endif %}
+
+- name: Перезапустить интерфейс
+  ansible.builtin.shell: "ifdown {{ target_iface }} 2>/dev/null; ifup {{ target_iface }}"
+  changed_when: true

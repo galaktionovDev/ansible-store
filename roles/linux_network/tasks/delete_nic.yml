@@ -12,6 +12,10 @@
   ansible.builtin.include_tasks: cleanup_nmcli.yml
   when: network_backend == 'nmcli'
 
+- name: Снятие конфигурации
+  ansible.builtin.include_tasks: cleanup_ifupdown.yml
+  when: network_backend == 'ifupdown'
+
 - name: Возврат данных в граф
   ansible.builtin.set_stats:
     data:

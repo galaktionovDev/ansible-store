@@ -1,0 +1,19 @@
+---
+- name: Снять интерфейс
+  ansible.builtin.command: "ifdown {{ target_iface }}"
+  when: target_iface | length > 0
+  changed_when: true
+  failed_when: false
+
+- name: Удалить конфиг из /etc/network/interfaces
+  ansible.builtin.blockinfile:
+    path: /etc/network/interfaces
+    marker: "# {mark} LINUX_NETWORK extra {{ target_iface }}"
+    state: absent
+  when: target_iface | length > 0
+
+- name: Снять ip rule и очистить таблицу маршрутов
+  ansible.builtin.shell: "ip rule del from {{ del_ip }} 2>/dev/null; ip route flush table {{ route_table }} 2>/dev/null || true"
+  when: del_ip | length > 0
+  changed_when: true
+  failed_when: false

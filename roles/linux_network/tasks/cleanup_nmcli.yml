@@ -5,15 +5,22 @@
     state: absent
   when: target_iface | length > 0
   failed_when: false
-
-- name: Удалить соединение по имени
+ 
+- name: Удалить соединение по имени (если iface не определён)
   ansible.builtin.shell: "nmcli -t -f NAME connection show | grep '^extra-' | while read c; do nmcli connection delete \"$c\"; done"
   when: target_iface | length == 0
   changed_when: true
   failed_when: false
-
+ 
+- name: Удалить dispatcher PBR-скрипт
+  ansible.builtin.file:
+    path: "/etc/NetworkManager/dispatcher.d/99-pbr-{{ target_iface }}"
+    state: absent
+  when: target_iface | length > 0
+ 
 - name: Снять ip rule и таблицу
   ansible.builtin.shell: "ip rule del from {{ del_ip }} 2>/dev/null; ip route flush table {{ route_table }} 2>/dev/null || true"
   when: del_ip | length > 0
   changed_when: true
   failed_when: false
+ 

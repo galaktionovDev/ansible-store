@@ -8,6 +8,25 @@
   set_fact:
     selected_repositories: "{{ set_repositories_required_repo.yum['el9'] if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else set_repositories_required_repo.yum['el' + ansible_distribution_major_version] }}"
 
+- name: "set_repositories | find existing repo files on AlmaLinux"
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d
+    patterns: "*.repo"
+  register: set_repositories_alma_existing_repo_files
+  when:
+    - "ansible_distribution.split(' ') | first | lower == 'almalinux'"
+
+- name: "set_repositories | disable all third-party repositories on AlmaLinux before adding own"
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: '^enabled\s*=\s*1\s*$'
+    replace: "enabled=0"
+  loop: "{{ set_repositories_alma_existing_repo_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - "ansible_distribution.split(' ') | first | lower == 'almalinux'"
+
 
 - name: "set_repositories | add required repo from set_repositories_required_repo"
   yum_repository:

@@ -1,0 +1,21 @@
+---
+
+- name: Match ordered disks to block devices
+  set_fact:
+    disks_match_report: "{{ lookup('template', 'match_disks_to_devices.jinja2') }}"
+
+- name: Print disks match report
+  debug:
+    var: disks_match_report
+
+- name: Fail on unresolved disks
+  fail:
+    msg: >-
+      Не удалось однозначно сопоставить диски с устройствами.
+      Не найдены: {{ disks_match_report.unmatched | join('; ') | default('-', true) }}.
+      Конфликты: {{ disks_match_report.conflicts | join('; ') | default('-', true) }}.
+  when: (disks_match_report.unmatched | length > 0) or (disks_match_report.conflicts | length > 0)
+
+- name: Save matched disks
+  set_fact:
+    disks_matched: "{{ disks_match_report.matched }}"

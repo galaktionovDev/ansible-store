@@ -1,0 +1,105 @@
+---
+
+- name: Check contract
+  fail:
+    msg: "delete_mount_point: extra_mounts обязателен и не может быть пуст"
+  when: extra_mounts is not defined or extra_mounts | length == 0
+
+- name: Build removal plan
+  set_fact:
+    dmp_plan: >-
+      {%- set out = [] -%}
+      {%- for m in extra_mounts -%}
+          {%- set dev = (ansible_mounts | selectattr('mount', 'equalto', m.mount) | map(attribute='device') | first) | default('', true) -%}
+          {%- set mapper = (dev.split('/') | last) if dev.startswith('/dev/mapper/') else '' -%}
+          {%- set guess = 'lv' ~ (m.mount.split('/') | join('_')) | regex_replace('-', '') -%}
+          {%- set lv = mapper.rsplit('-', 1)[1] if '-' in mapper else guess -%}
+          {%- set vg = mapper.rsplit('-', 1)[0] if '-' in mapper
+                       else ((ansible_lvm.lvs[guess].vg) if (ansible_lvm is defined and ansible_lvm.lvs is defined and guess in ansible_lvm.lvs) else '') -%}
+          {%- set _ = out.append({'mount': m.mount, 'vg': vg, 'lv': lv}) -%}
+      {%- endfor -%}
+      {{ out }}
+
+- name: Print removal plan
+  debug:
+    var: dmp_plan
+
+- name: Unmount and remove fstab entries
+  mount:
+    path: "{{ item.mount }}"
+    state: absent
+  loop: "{{ dmp_plan }}"
+  loop_control:
+    label: "{{ item.mount }}"
+
+- name: Check if logical volumes exist
+  command: lvdisplay "{{ item.vg }}/{{ item.lv }}"
+  loop: "{{ dmp_plan }}"
+  loop_control:
+    label: "{{ item.vg }}/{{ item.lv }}"
+  when: item.vg | length > 0
+  register: dmp_lv_check
+  failed_when: false
+  changed_when: false
+
+- name: Remove logical volumes
+  command: lvremove -f "{{ item.item.vg }}/{{ item.item.lv }}"
+  loop: "{{ dmp_lv_check.results }}"
+  loop_control:
+    label: "{{ item.item.vg }}/{{ item.item.lv }}"
+  when: not (item.skipped | default(false)) and item.rc == 0
+  notify: update_facts
+
+- meta: flush_handlers
+
+- name: List volume groups with LV count
+  command: vgs --noheadings -o vg_name,lv_count --separator ';'
+  register: dmp_vgs
+  changed_when: false
+  when: cleanup_vg | default(true)
+
+- name: Find empty per-disk volume groups
+  set_fact:
+    dmp_empty_vgs: >-
+      {%- set out = [] -%}
+      {%- for line in dmp_vgs.stdout_lines | default([]) -%}
+          {%- set parts = line.strip().split(';') -%}
+          {%- if parts | length == 2 and parts[0].startswith('vg_') and parts[0] != app_vg_name and parts[1].strip() == '0' -%}
+              {%- set _ = out.append(parts[0]) -%}
+          {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  when: cleanup_vg | default(true)
+
+- name: Cleanup empty per-disk volume groups
+  block:
+    - name: Find physical volumes of empty volume groups
+      command: pvs --noheadings -o pv_name --select vg_name={{ item }}
+      loop: "{{ dmp_empty_vgs }}"
+      register: dmp_pvs
+      changed_when: false
+
+    - name: Remove empty volume groups
+      command: vgremove -f "{{ item }}"
+      loop: "{{ dmp_empty_vgs }}"
+      notify: update_facts
+
+    - name: Remove physical volumes and wipe signatures
+      shell: pvremove -ff -y {{ item | trim }} && wipefs -a {{ item | trim }}
+      loop: "{{ dmp_pvs.results | map(attribute='stdout_lines') | flatten | map('trim') | select | list }}"
+      ignore_errors: true
+  when: cleanup_vg | default(true) and dmp_empty_vgs | length > 0
+
+- meta: flush_handlers
+
+- name: Report (shared)
+  block:
+    - name: Refresh facts before report
+      setup:
+        gather_subset: hardware
+    - name: Set stats
+      set_stats:
+        data:
+          disk_devices_data:
+            extra_disks: "{{ generated_extra_disks }}"
+            extra_mounts: "{{ generated_extra_mounts }}"

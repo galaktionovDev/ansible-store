@@ -1,5 +1,33 @@
 ---
 
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Вход по ключу - подготовка ключа из StarVault
+      when: ssh_key_path is defined and ssh_key_path | length > 0
+      no_log: true
+      block:
+        - name: Читаем ключ из StarVault по пути из формы
+          ansible.builtin.uri:
+            url: "{{ vault_addr }}/v1/{{ vault_mount_point | default('shared-secret') }}/data/{{ ssh_key_path }}"
+            method: GET
+            headers:
+              X-Vault-Token: "{{ vault_token }}"
+            validate_certs: false
+          register: vault_response
+
+        - name: Кладём ключ во временный файл на исполнителе задания
+          ansible.builtin.copy:
+            content: "{{ vault_response.json.data.data.ssh_key_data }}\n"
+            dest: "/tmp/machine-key-{{ tower_job_id }}"
+            mode: "0600"
+
+        - name: Подставляем путь к ключу как переменную подключения для целевого хоста
+          add_host:
+            name: "{{ groups['all'][0] }}"
+            ansible_ssh_private_key_file: "/tmp/machine-key-{{ tower_job_id }}"
+
 - hosts: all
   gather_facts: false
   tasks:
@@ -12,4 +40,16 @@
     - include_role:
         name: configure-repositories
       vars:
-        interface: get_manage_info      
+        interface: get_manage_info
+
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Убираем временный файл ключа
+      ansible.builtin.file:
+        path: "/tmp/machine-key-{{ tower_job_id }}"
+        state: absent
+      delegate_to: localhost
+      no_log: true
+      when: ssh_key_path is defined and ssh_key_path | length > 0

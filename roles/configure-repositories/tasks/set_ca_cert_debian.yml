@@ -6,9 +6,12 @@
     url: "{{ ca_url }}"
     validate_certs: false
     return_content: true
+    status_code: 200
   register: ca_crt
+  until: ca_crt.status is defined and ca_crt.status == 200
   retries: 5
   delay: 10
+  changed_when: false
 
 - name: Save certificates to system directory
   copy:

@@ -34,3 +34,5 @@ root_vg_name: "{{ result_parts[0] | regex_replace('--', '-') }}"
 
 #root_vg_name: "{{ ('-').join(root_device_name.split('-')[:-1]) | regex_replace('--', '-') }}"
 root_partition_name: "{{ lookup('template', 'get_root_partition_name.jinja2') | trim }}"
+
+disk_layout: "{{ 'shared' if (ansible_lvm is defined and ansible_lvm.vgs is defined and app_vg_name in ansible_lvm.vgs) else ('per_disk' if (extra_disks | default([]) | selectattr('name', 'defined') | list | length > 0) else 'shared') }}"

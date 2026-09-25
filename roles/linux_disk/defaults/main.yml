@@ -26,4 +26,15 @@ allowed_interfaces:
 - expand_boot
 - get_manage_info
 - add_mount_point
+- delete_mount_point
+- add_disk
+- expand_disk
+- delete_disk
+
+per_disk_tasks:
+  initialize: per_disk_apply
+  delete_disk: delete_disk
+
+cleanup_vg: true
+delete_disk_wipe: true
 ...

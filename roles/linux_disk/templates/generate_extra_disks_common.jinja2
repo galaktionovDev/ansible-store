@@ -32,6 +32,7 @@
     {%- for disk in extra_disks if 'path' not in disk and disk_name not in old and not is_break -%}
         {%- if disk.size == disk_size_gb and disk_name not in old -%}
             {%- set _ = disk.update(path='/dev/' + disk_name) -%}
+            {%- set _ = old.append(disk_name) -%}
             {%- if disk_params.serial is defined -%}
                 {%- set _ = disk.update(serial=disk_params.serial) -%}
                 {%- if platform == 'hyper_v' -%}

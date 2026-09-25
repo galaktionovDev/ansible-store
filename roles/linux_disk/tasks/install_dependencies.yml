@@ -1,0 +1,55 @@
+---
+- name: Determine required packages based on OS
+  ansible.builtin.set_fact:
+    required_packages: >-
+      {{
+        ['lvm2', 'xfsprogs'] if (ansible_distribution.split(' ')[0] | lower in ['ubuntu', 'astra', 'debian']) else
+        ['lvm2', 'lvm2-libs', 'device-mapper', 'device-mapper-libs', 'device-mapper-event', 'device-mapper-event-libs', 'xfsprogs']
+      }}
+
+- name: Check if required packages are installed (APT)
+  ansible.builtin.command: dpkg -l {{ required_packages | join(' ') }}
+  register: apt_check
+  failed_when: false
+  changed_when: false
+  when: ansible_distribution.split(' ')[0] | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install dependencies (APT)
+  ansible.builtin.apt:
+    name: "{{ required_packages }}"
+    state: present
+    update_cache: yes
+  when:
+    - ansible_distribution.split(' ')[0] | lower in ['ubuntu', 'astra', 'debian']
+    - apt_check.rc != 0
+
+- name: Check if required packages are installed (YUM/DNF)
+  ansible.builtin.command: rpm -q {{ required_packages | join(' ') }}
+  register: rpm_check
+  failed_when: false
+  changed_when: false
+  when: ansible_distribution.split(' ')[0] | lower in ['red', 'almalinux', 'centos', 'oraclelinux']
+
+- name: Install dependencies (DNF - EL8/EL9/EL10)
+  ansible.builtin.dnf:
+    name: "{{ required_packages }}"
+    state: present
+    enablerepo: "cld-repository-el{{ '9' if (ansible_distribution.split(' ')[0] | lower == 'red' and ansible_distribution_major_version == '8') else ansible_distribution_major_version }}"
+    disablerepo: "*"
+    update_cache: yes
+    allow_downgrade: yes
+  when:
+    - ansible_distribution.split(' ')[0] | lower in ['red', 'almalinux', 'oraclelinux']
+    - rpm_check.rc != 0
+
+- name: Install dependencies (YUM - EL7)
+  ansible.builtin.yum:
+    name: "{{ required_packages }}"
+    state: present
+    enablerepo: "cld-repository-el{{ '9' if (ansible_distribution.split(' ')[0] | lower == 'red' and ansible_distribution_major_version == '8') else ansible_distribution_major_version }}"
+    disablerepo: "*"
+    update_cache: yes
+    allow_downgrade: yes
+  when:
+    - ansible_distribution.split(' ')[0] | lower in ['centos']
+    - rpm_check.rc != 0

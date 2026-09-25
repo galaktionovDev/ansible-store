@@ -8,6 +8,9 @@
 - name: Gathering facts
   setup:
 
+- name: Проверка и установка зависимостей LVM2/XFS
+  ansible.builtin.include_tasks: install_dependencies.yml  
+
 
 - name: "Run interface {{ interface }}"
   include_tasks: "{{ interface }}.yml"

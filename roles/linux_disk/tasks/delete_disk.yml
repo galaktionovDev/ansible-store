@@ -41,80 +41,146 @@
   debug:
     var: dd_device
 
-- name: Note when deleted disk is already gone from OS
-  debug:
-    msg: "Устройство удалённого диска не найдено в ОС — вероятно уже отвязано, пропускаю очистку."
-  when: dd_device | length == 0
+- name: Require selected device to remain attached
+  ansible.builtin.assert:
+    that:
+      - dd_device | length > 0
+      - dd_device != boot_disk_name
+    fail_msg: >-
+      Selected disk is not visible to the guest. Refusing cleanup before platform detach.
 
-- name: Cleanup LVM on deleted device
-  when: dd_device | length > 0 and (cleanup_vg | default(true))
+- name: Find volume group on selected physical volume
+  ansible.builtin.command:
+    argv: [pvs, --noheadings, -o, vg_name, "/dev/{{ dd_device }}"]
+  register: dd_vg_query
+  changed_when: false
+  failed_when: false
+
+- name: Save selected volume group
+  ansible.builtin.set_fact:
+    dd_vg_name: "{{ dd_vg_query.stdout | trim if dd_vg_query.rc == 0 else '' }}"
+
+- name: Reject unexpected partitioned disk without directly detected PV
+  ansible.builtin.assert:
+    that:
+      - disk_devices[dd_device].partitions | default({}) | length == 0
+    fail_msg: >-
+      Partitioned disk or partition-level PV detected. Automatic removal is not supported.
+  when: dd_vg_name | length == 0
+
+- name: Check for directly mounted filesystems on selected disk
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ansible_mounts |
+         selectattr('device', 'match', '^/dev/' ~ dd_device ~ '([0-9]+)?$') |
+         list | length) == 0
+    fail_msg: >-
+      Selected disk has a directly mounted filesystem. Refusing detach.
+
+- name: Inspect selected VG before cleanup
+  when: dd_vg_name | length > 0
   block:
-    - name: Find volume groups backed by the deleted device
-      command: >-
-        pvs --noheadings -o vg_name /dev/{{ dd_device }}
-      register: dd_vgs
-      failed_when: false
+    - name: Read VG physical volumes
+      ansible.builtin.command:
+        argv: [pvs, --noheadings, -o, pv_name, --select, "vg_name={{ dd_vg_name }}"]
+      register: dd_vg_pv_query
       changed_when: false
 
-    - name: Set target VGs to remove
-      set_fact:
-        dd_target_vgs: >-
-          {{ dd_vgs.stdout_lines | default([]) | map('trim')
-             | select('match', '^vg_') | reject('equalto', app_vg_name) | list }}
+    - name: Build VG physical volume list
+      ansible.builtin.set_fact:
+        dd_vg_pv_list: >-
+          {{ dd_vg_pv_query.stdout_lines | map('trim')
+             | reject('equalto', '') | list }}
 
-    - name: Check allocated extents on deleted PV
-      command: pvs --noheadings --nosuffix -o pv_used /dev/{{ dd_device }}
+    - name: Read used capacity on selected PV
+      ansible.builtin.command:
+        argv: [pvs, --noheadings, --nosuffix, -o, pv_used, "/dev/{{ dd_device }}"]
       register: dd_pv_used
-      failed_when: false
       changed_when: false
 
-    - name: Fail if deleted disk still holds data
-      fail:
-        msg: >-
-          Диск /dev/{{ dd_device }} содержит размещённые данные
-          (занято {{ dd_pv_used.stdout | trim }}). Освободите диск вручную
-          (перенесите или удалите тома) перед удалением.
-      when:
-        - dd_pv_used.rc == 0
-        - (dd_pv_used.stdout | trim | float) > 0
-        - dd_target_vgs | length == 0
+    - name: Verify VG ownership and PV membership
+      ansible.builtin.assert:
+        that:
+          - dd_vg_name is match('^vg_')
+          - dd_vg_name != root_vg_name
+          - dd_vg_pv_list | length > 0
+          - "'/dev/' ~ dd_device in dd_vg_pv_list"
+        fail_msg: >-
+          The selected PV does not belong to a supported application VG.
 
-    - name: Print target VGs
-      debug:
-        var: dd_target_vgs
+    - name: Reject a used PV in a multi-PV VG
+      ansible.builtin.assert:
+        that:
+          - (dd_pv_used.stdout | trim | float) == 0
+        fail_msg: >-
+          VG spans multiple PVs and selected PV contains allocated extents.
+          Remove or migrate the LVs explicitly before deleting this disk.
+      when: dd_vg_pv_list | length > 1
 
-    - name: Unmount and drop fstab entries for LVs on target VGs
-      mount:
-        path: "{{ item.mount }}"
-        state: absent
-      loop: >-
-        {{ ansible_mounts
-           | selectattr('device', 'match', '^/dev/mapper/(' ~ (dd_target_vgs | join('|')) ~ ')-')
-           | list }}
-      loop_control:
-        label: "{{ item.mount }}"
-      when: dd_target_vgs | length > 0
+    - name: Remove dedicated VG with its file systems
+      when: dd_vg_pv_list | length == 1
+      block:
+        - name: Find mounted logical volumes of the dedicated VG
+          ansible.builtin.set_fact:
+            dd_mounts_to_remove: >-
+              {{ (ansible_mounts |
+                   selectattr('device', 'match', '^/dev/mapper/' ~ dd_vg_name ~ '-') |
+                   list)
+                 + (ansible_mounts |
+                    selectattr('device', 'match', '^/dev/' ~ dd_vg_name ~ '/') |
+                    list) }}
 
-    - name: Remove volume groups on deleted device
-      command: vgremove -f "{{ item }}"
-      loop: "{{ dd_target_vgs }}"
-      when: dd_target_vgs | length > 0
+        - name: Unmount application filesystems and remove their fstab entries
+          ansible.posix.mount:
+            path: "{{ item.mount }}"
+            state: absent
+          loop: "{{ dd_mounts_to_remove }}"
+          loop_control:
+            label: "{{ item.mount }}"
+
+        - name: Refresh mount facts before VG removal
+          ansible.builtin.setup:
+            gather_subset: hardware
+
+        - name: Ensure that no filesystems from dedicated VG remain mounted
+          ansible.builtin.assert:
+            that:
+              - >-
+                (ansible_mounts |
+                 selectattr('device', 'match', '^/dev/mapper/' ~ dd_vg_name ~ '-') |
+                 list | length) == 0
+              - >-
+                (ansible_mounts |
+                 selectattr('device', 'match', '^/dev/' ~ dd_vg_name ~ '/') |
+                 list | length) == 0
+            fail_msg: >-
+              Dedicated VG still has mounted file systems.
+
+        - name: Remove dedicated VG and logical volumes
+          ansible.builtin.command:
+            argv: [vgremove, -f, "{{ dd_vg_name }}"]
+          notify: update_facts
+
+    - name: Release empty PV from multi-PV VG
+      ansible.builtin.command:
+        argv: [vgreduce, "{{ dd_vg_name }}", "/dev/{{ dd_device }}"]
+      when: dd_vg_pv_list | length > 1
       notify: update_facts
 
-    - name: Reduce shared VG by the empty deleted PV
-      command: vgreduce "{{ app_vg_name }}" /dev/{{ dd_device }}
-      when:
-        - dd_target_vgs | length == 0
-        - dd_pv_used.rc == 0
-        - (dd_pv_used.stdout | trim | float) == 0
+    - name: Remove remaining orphan PV label
+      ansible.builtin.command:
+        argv: [pvremove, -ff, -y, "/dev/{{ dd_device }}"]
+      register: dd_pvremove
+      changed_when: dd_pvremove.rc == 0
       failed_when: false
-      notify: update_facts
-
-    - name: Wipe PV signature on deleted device
-      shell: pvremove -ff -y /dev/{{ dd_device }} && wipefs -a /dev/{{ dd_device }}
       when: delete_disk_wipe | default(true)
-      ignore_errors: true
-      notify: update_facts
+
+- name: Erase residual signatures only after successful LVM cleanup
+  ansible.builtin.command:
+    argv: [wipefs, -a, "/dev/{{ dd_device }}"]
+  when: delete_disk_wipe | default(true)
+  notify: update_facts
 
 - meta: flush_handlers
 
